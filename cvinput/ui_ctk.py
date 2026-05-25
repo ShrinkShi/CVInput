@@ -133,7 +133,13 @@ class CVInputUI(ctk.CTk):
         self.is_multi_slot_visible = False
         self.interval_row = None
         self.settings_icon = self.load_icon("set.png")
+        self.settings_icon_hover = self.load_icon("set.png", size=(18, 18), tint="#6fb49d")
         self.about_icon = self.load_icon("about.png")
+        self.about_icon_hover = self.load_icon("about.png", size=(18, 18), tint="#6fb49d")
+        self.github_icon = self.load_icon("github.png")
+        self.github_icon_hover = self.load_icon("github.png", size=(18, 18), tint="#6fb49d")
+        self.email_icon = self.load_icon("email.png")
+        self.email_icon_hover = self.load_icon("email.png", size=(18, 18), tint="#6fb49d")
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -179,6 +185,7 @@ class CVInputUI(ctk.CTk):
             self.open_settings,
             "tooltip.settings",
             image=self.settings_icon,
+            hover_image=self.settings_icon_hover,
         )
         self.settings_button.pack(side="left")
         self.about_button = self.icon_button(
@@ -187,6 +194,7 @@ class CVInputUI(ctk.CTk):
             self.open_about,
             "tooltip.about",
             image=self.about_icon,
+            hover_image=self.about_icon_hover,
         )
         self.about_button.pack(side="left", padx=(2, 0))
 
@@ -232,13 +240,13 @@ class CVInputUI(ctk.CTk):
         self.action_frame.pack_propagate(False)
         self.input_button = self.icon_button(
             self.action_frame,
-            "✍️",
+            "✏️",
             self.controller.start_typing_from_button,
             "tooltip.type",
             text_color="#6fb49d",
             font=("Segoe UI Emoji", 13),
         )
-        self.input_button.pack(side="left")
+        self.input_button.pack(side="left", pady=(2, 0))
         self.stop_button = self.icon_button(
             self.action_frame,
             "■",
@@ -246,7 +254,7 @@ class CVInputUI(ctk.CTk):
             "tooltip.stop",
             text_color="#d47d7d",
         )
-        self.stop_button.pack(side="left", padx=(3, 0))
+        self.stop_button.pack(side="left", padx=(3, 0), pady=(2, 0))
         self.read_button = self.icon_button(
             self.action_frame,
             "📄",
@@ -254,7 +262,7 @@ class CVInputUI(ctk.CTk):
             "tooltip.read_clipboard",
             font=("Segoe UI Emoji", 13),
         )
-        self.read_button.pack(side="left", padx=(3, 0))
+        self.read_button.pack(side="left", padx=(3, 0), pady=(2, 0))
         self.progress_bar = ctk.CTkProgressBar(
             self.action_frame,
             width=78,
@@ -264,7 +272,7 @@ class CVInputUI(ctk.CTk):
             progress_color="#6fb49d",
         )
         self.progress_bar.set(0)
-        self.progress_bar.pack(side="left", padx=(8, 0), pady=(10, 0))
+        self.progress_bar.pack(side="left", padx=(8, 0), pady=(8, 0))
         self.progress_percent_label = ctk.CTkLabel(
             self.action_frame,
             text="",
@@ -273,7 +281,7 @@ class CVInputUI(ctk.CTk):
             font=("Segoe UI", 9),
             text_color=MUTED,
         )
-        self.progress_percent_label.pack(side="left", padx=(5, 0), pady=(3, 0))
+        self.progress_percent_label.pack(side="left", padx=(5, 0), pady=(1, 0))
 
         self.hotkeys_switch = ctk.CTkSwitch(
             self.action_frame,
@@ -287,6 +295,7 @@ class CVInputUI(ctk.CTk):
             command=lambda: self.controller.set_hotkeys_enabled(bool(self.hotkeys_switch.get())),
         )
         self.hotkeys_switch.pack(side="right", pady=(4, 0))
+        self.add_tooltip(self.hotkeys_switch, "tooltip.hotkeys_switch")
         if self.config.get("hotkeys_enabled", True):
             self.hotkeys_switch.select()
 
@@ -302,6 +311,7 @@ class CVInputUI(ctk.CTk):
             command=lambda: self.controller.set_clipboard_listener(bool(self.listen_switch.get())),
         )
         self.listen_switch.pack(side="right", padx=(0, 8), pady=(4, 0))
+        self.add_tooltip(self.listen_switch, "tooltip.listen_switch")
         if self.config["auto_clipboard"]:
             self.listen_switch.select()
 
@@ -315,15 +325,44 @@ class CVInputUI(ctk.CTk):
         )
         self.status_label.pack(fill="x", padx=12, pady=(0, 8))
 
-    def load_icon(self, filename):
+    def load_icon(self, filename, size=(16, 16), tint=None):
         path = resource_path(Path("assets") / filename)
         try:
-            image = Image.open(path)
+            image = Image.open(path).convert("RGBA")
         except (FileNotFoundError, OSError):
             return None
-        return ctk.CTkImage(light_image=image, dark_image=image, size=(16, 16))
+        if tint:
+            color = tint.lstrip("#")
+            r, g, b = int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+            alpha = image.getchannel("A")
+            image = Image.new("RGBA", image.size, (r, g, b, 0))
+            image.putalpha(alpha)
+        return ctk.CTkImage(light_image=image, dark_image=image, size=size)
 
-    def icon_button(self, parent, text, command, tooltip_key, text_color="#c7d0dc", font=("Segoe UI Symbol", 13), image=None):
+    def add_tooltip(self, widget, tooltip_key):
+        self.tooltips[widget] = (tooltip_key, Tooltip(widget, self.t(tooltip_key)))
+
+    def icon_hover_color(self, current_color):
+        if str(current_color).lower() in ("#6fb49d", "#4f947f"):
+            return "#4f947f"
+        return "#6fb49d"
+
+    def enlarged_font(self, font):
+        if isinstance(font, tuple) and len(font) >= 2 and isinstance(font[1], int):
+            return (font[0], font[1] + 2, *font[2:])
+        return font
+
+    def icon_button(
+        self,
+        parent,
+        text,
+        command,
+        tooltip_key,
+        text_color="#c7d0dc",
+        font=("Segoe UI Symbol", 13),
+        image=None,
+        hover_image=None,
+    ):
         button = ctk.CTkButton(
             parent,
             text=text,
@@ -333,12 +372,41 @@ class CVInputUI(ctk.CTk):
             corner_radius=6,
             border_width=0,
             fg_color="transparent",
-            hover_color=HOVER,
+            hover_color=SURFACE,
             text_color=text_color,
             font=font,
             command=command,
         )
-        self.tooltips[button] = (tooltip_key, Tooltip(button, self.t(tooltip_key)))
+        hover_font = self.enlarged_font(font)
+
+        def on_enter(_event=None):
+            if not self.widget_exists(button):
+                return
+            button._normal_text_color = button.cget("text_color")
+            try:
+                button.configure(font=hover_font, text_color=self.icon_hover_color(button._normal_text_color))
+                if hover_image is not None:
+                    button.configure(image=hover_image)
+                elif image is not None:
+                    image.configure(size=(18, 18))
+            except Exception:
+                pass
+
+        def on_leave(_event=None):
+            if not self.widget_exists(button):
+                return
+            try:
+                button.configure(font=font, text_color=getattr(button, "_normal_text_color", text_color))
+                if hover_image is not None:
+                    button.configure(image=image)
+                elif image is not None:
+                    image.configure(size=(16, 16))
+            except Exception:
+                pass
+
+        button.bind("<Enter>", on_enter, add="+")
+        button.bind("<Leave>", on_leave, add="+")
+        self.add_tooltip(button, tooltip_key)
         return button
 
     def prune_tooltips(self):
@@ -382,7 +450,7 @@ class CVInputUI(ctk.CTk):
 
     def open_settings(self):
         if self.widget_exists(self.settings_window):
-            self.place_settings_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
+            self.place_child_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
             self.focus_window_safely(self.settings_window)
             return
 
@@ -427,6 +495,7 @@ class CVInputUI(ctk.CTk):
             "label.custom_interval_enabled",
             self.config["custom_interval_enabled"],
             lambda: self.controller.set_custom_interval_enabled(bool(self.custom_interval_switch.get())),
+            "tooltip.setting.custom_interval_enabled",
         )
 
         self.interval_row = interval_row
@@ -441,60 +510,70 @@ class CVInputUI(ctk.CTk):
             "label.auto_clipboard",
             self.config["auto_clipboard"],
             lambda: self.controller.set_clipboard_listener(bool(self.clipboard_switch.get())),
+            "tooltip.setting.auto_clipboard",
         )
         self.clear_switch = self.setting_switch(
             content,
             "label.clear_after_typing",
             self.config["clear_after_input"],
             lambda: self.controller.set_clear_after_input(bool(self.clear_switch.get())),
+            "tooltip.setting.clear_after_typing",
         )
         self.disable_empty_switch = self.setting_switch(
             content,
             "label.disable_hotkey_when_clipboard_empty",
             self.config["disable_hotkey_when_clipboard_empty"],
             lambda: self.controller.set_disable_hotkey_when_clipboard_empty(bool(self.disable_empty_switch.get())),
+            "tooltip.setting.disable_hotkey_when_clipboard_empty",
         )
         self.ime_switch = self.setting_switch(
             content,
             "label.toggle_ime_with_shift",
             self.config["toggle_ime_with_shift"],
             lambda: self.controller.set_toggle_ime_with_shift(bool(self.ime_switch.get())),
+            "tooltip.setting.toggle_ime_with_shift",
         )
         self.newline_switch = self.setting_switch(
             content,
             "label.newline_with_shift_enter",
             self.config["newline_with_shift_enter"],
             lambda: self.controller.set_newline_with_shift_enter(bool(self.newline_switch.get())),
+            "tooltip.setting.newline_with_shift_enter",
         )
         self.multi_slot_switch = self.setting_switch(
             content,
             "label.multi_slot_enabled",
             self.config["multi_slot_enabled"],
             lambda: self.controller.set_multi_slot_enabled(bool(self.multi_slot_switch.get())),
+            "tooltip.setting.multi_slot_enabled",
         )
         self.close_to_tray_switch = self.setting_switch(
             content,
             "label.close_to_tray",
             self.config["close_to_tray"],
             lambda: self.controller.set_close_to_tray(bool(self.close_to_tray_switch.get())),
+            "tooltip.setting.close_to_tray",
         )
         self.startup_switch = self.setting_switch(
             content,
             "label.startup_on_boot",
             self.config["startup_on_boot"],
             lambda: self.controller.set_startup_on_boot(bool(self.startup_switch.get())),
+            "tooltip.setting.startup_on_boot",
         )
         self.remember_settings_switch = self.setting_switch(
             content,
             "label.remember_settings",
             self.config["remember_settings"],
             lambda: self.controller.set_remember_settings(bool(self.remember_settings_switch.get())),
+            "tooltip.setting.remember_settings",
         )
         self.close_popup_on_blur_switch = self.setting_switch(
             content,
             "label.close_popup_on_blur",
             self.config["close_popup_on_blur"],
             lambda: self.controller.set_close_popup_on_blur(bool(self.close_popup_on_blur_switch.get())),
+            "tooltip.setting.close_popup_on_blur",
         )
 
         opacity_row = ctk.CTkFrame(content, fg_color="transparent")
@@ -548,13 +627,13 @@ class CVInputUI(ctk.CTk):
 
         self.settings_status = ctk.CTkLabel(frame, text="", anchor="w", font=("Segoe UI", 10), text_color=MUTED, height=18)
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
-        self.place_settings_window_near_main(win, *self.SETTINGS_SIZE)
+        self.place_child_window_near_main(win, *self.SETTINGS_SIZE)
         self.register_child_popup(win, self.close_settings)
         self.after(20, lambda target=win: self.focus_window_safely(target))
 
     def open_about(self):
         if self.widget_exists(self.about_window):
-            self.center_child_window(self.about_window, self, *self.ABOUT_SIZE)
+            self.place_child_window_near_main(self.about_window, *self.ABOUT_SIZE)
             self.focus_window_safely(self.about_window)
             return
 
@@ -569,8 +648,8 @@ class CVInputUI(ctk.CTk):
             "label.about_with_product",
             self.close_about,
             actions=[
-                ("G", self.controller.open_github, "tooltip.github"),
-                ("@", self.controller.copy_email, "tooltip.email"),
+                ("G", self.controller.open_github, "tooltip.github", self.github_icon, self.github_icon_hover),
+                ("@", self.controller.copy_email, "tooltip.email", self.email_icon, self.email_icon_hover),
             ],
             centered=True,
         )
@@ -587,37 +666,53 @@ class CVInputUI(ctk.CTk):
             f"{self.t('about.usage_title')}\n{self.t('help.body')}\n\n"
             f"{self.t('about.notes_title')}\n{self.t('about.notes')}"
         )
-        card_width = self.ABOUT_SIZE[0] - 34
-        card_height = self.ABOUT_SIZE[1] - 92
         text_canvas = tk.Canvas(
             body,
-            width=card_width,
-            height=card_height,
+            width=self.ABOUT_SIZE[0] - 34,
+            height=self.ABOUT_SIZE[1] - 110,
             bg="#454a51",
             bd=0,
             highlightthickness=0,
         )
         text_canvas.pack(fill="both", expand=True, pady=(4, 0))
-        text_canvas.create_text(
-            card_width // 2,
-            card_height // 2,
-            text=self.t("about.watermark"),
-            fill="#596069",
-            font=("Microsoft YaHei UI", 32, "bold"),
-            angle=-24,
+        text_canvas.bind(
+            "<Configure>",
+            lambda event, canvas=text_canvas, text=content_text: self.draw_about_canvas(canvas, text),
+            add="+",
         )
-        text_canvas.create_text(
-            13,
-            13,
-            anchor="nw",
-            text=content_text,
-            width=card_width - 26,
-            fill="#f1f3f6",
-            font=("Microsoft YaHei UI", 9),
-        )
-        self.center_child_window(win, self, *self.ABOUT_SIZE)
+        self.after(20, lambda canvas=text_canvas, text=content_text: self.draw_about_canvas(canvas, text))
+        self.place_child_window_near_main(win, *self.ABOUT_SIZE)
         self.register_child_popup(win, self.close_about)
         self.after(20, lambda target=win: self.focus_window_safely(target))
+
+    def draw_about_canvas(self, canvas, content_text):
+        if not self.widget_exists(canvas):
+            return
+        try:
+            width = max(canvas.winfo_width(), 1)
+            height = max(canvas.winfo_height(), 1)
+            canvas.delete("all")
+            canvas.create_rectangle(0, 0, width, height, fill="#454a51", outline="")
+            canvas.create_text(
+                width // 2,
+                height // 2,
+                text=self.t("about.watermark"),
+                fill="#596069",
+                font=("Microsoft YaHei UI", 32, "bold"),
+                angle=-24,
+            )
+            canvas.create_rectangle(0, 0, width, height, fill="#ffffff", outline="", stipple="gray25")
+            canvas.create_text(
+                13,
+                13,
+                anchor="nw",
+                text=content_text,
+                width=max(width - 26, 1),
+                fill="#f1f3f6",
+                font=("Microsoft YaHei UI", 9),
+            )
+        except tk.TclError:
+            pass
 
     def prepare_popup(self, win, width, height):
         win.overrideredirect(True)
@@ -651,17 +746,20 @@ class CVInputUI(ctk.CTk):
             title.pack(side="left")
         close_button = self.icon_button(header, "×", close_command, "tooltip.close")
         close_button.pack(side="right")
-        for text, command, tooltip_key in reversed(actions or []):
-            button = self.icon_button(header, text, command, tooltip_key)
+        for action in reversed(actions or []):
+            text, command, tooltip_key = action[:3]
+            image = action[3] if len(action) > 3 else None
+            hover_image = action[4] if len(action) > 4 else None
+            button = self.icon_button(header, "" if image else text, command, tooltip_key, image=image, hover_image=hover_image)
             button.pack(side="right", padx=(0, 3))
         for widget in (header, title):
             widget.bind("<ButtonPress-1>", lambda event, target=win: self.start_popup_drag(target, event), add="+")
             widget.bind("<B1-Motion>", lambda event, target=win: self.drag_popup(target, event), add="+")
 
     def position_popup(self, win, width, height):
-        self.center_child_window(win, self, width, height)
+        self.place_child_window_near_main(win, width, height)
 
-    def place_settings_window_near_main(self, win, width, height):
+    def place_child_window_near_main(self, win, width, height):
         if not self.widget_exists(win):
             return
         try:
@@ -687,8 +785,17 @@ class CVInputUI(ctk.CTk):
         except tk.TclError:
             pass
 
+    def update_child_windows_position(self):
+        if self.widget_exists(self.settings_window):
+            self.place_child_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
+        if self.widget_exists(self.about_window):
+            self.place_child_window_near_main(self.about_window, *self.ABOUT_SIZE)
+
+    def place_settings_window_near_main(self, win, width, height):
+        self.place_child_window_near_main(win, width, height)
+
     def position_settings_window(self, win, width, height):
-        self.place_settings_window_near_main(win, width, height)
+        self.place_child_window_near_main(win, width, height)
 
     def center_child_window(self, child, parent, width=None, height=None):
         if not self.widget_exists(child) or not self.widget_exists(parent):
@@ -731,7 +838,7 @@ class CVInputUI(ctk.CTk):
             )
         except tk.TclError:
             return
-        if self.config.get("close_popup_on_blur", True) and self.outside_click_binding is None:
+        if self.config.get("close_popup_on_blur", False) and self.outside_click_binding is None:
             self.after(80, self.bind_outside_click_close_safely)
 
     def schedule_child_focus_check(self, win, close_command):
@@ -744,7 +851,7 @@ class CVInputUI(ctk.CTk):
             pass
 
     def close_child_popup_if_unfocused(self, win, close_command):
-        if not self.config.get("close_popup_on_blur", True):
+        if not self.config.get("close_popup_on_blur", False):
             return
         if not self.widget_exists(win):
             self.forget_child_popup(win)
@@ -776,7 +883,7 @@ class CVInputUI(ctk.CTk):
         return False
 
     def bind_outside_click_close(self):
-        if self.config.get("close_popup_on_blur", True) and self.outside_click_binding is None and self.child_popups:
+        if self.config.get("close_popup_on_blur", False) and self.outside_click_binding is None and self.child_popups:
             try:
                 self.outside_click_binding = self.bind("<ButtonPress-1>", self.close_child_popups_on_outside_click, add="+")
             except tk.TclError:
@@ -787,7 +894,7 @@ class CVInputUI(ctk.CTk):
             self.bind_outside_click_close()
 
     def close_child_popups_on_outside_click(self, event):
-        if not self.config.get("close_popup_on_blur", True):
+        if not self.config.get("close_popup_on_blur", False):
             return
         if event.widget in (self.settings_button, self.about_button):
             return
@@ -877,7 +984,7 @@ class CVInputUI(ctk.CTk):
         entry.pack(side="left", fill="x", expand=True)
         return entry
 
-    def setting_switch(self, parent, label_key, value, command):
+    def setting_switch(self, parent, label_key, value, command, tooltip_key=None):
         switch = ctk.CTkSwitch(
             parent,
             text=self.t(label_key),
@@ -891,6 +998,8 @@ class CVInputUI(ctk.CTk):
         switch.pack(anchor="w", pady=4)
         if value:
             switch.select()
+        if tooltip_key:
+            self.add_tooltip(switch, tooltip_key)
         return switch
 
     def apply_hotkey_from_settings(self):
@@ -915,6 +1024,7 @@ class CVInputUI(ctk.CTk):
 
     def drag_window(self, event):
         self.geometry(f"+{event.x_root - self.drag_x}+{event.y_root - self.drag_y}")
+        self.update_child_windows_position()
 
     def start_popup_drag(self, win, event):
         if not self.widget_exists(win):
@@ -1034,7 +1144,7 @@ class CVInputUI(ctk.CTk):
             self.interval_row.pack(fill="x", pady=4, after=self.custom_interval_switch)
 
     def refresh_popup_blur_behavior(self):
-        if self.config.get("close_popup_on_blur", True):
+        if self.config.get("close_popup_on_blur", False):
             if self.child_popups and self.outside_click_binding is None:
                 self.bind_outside_click_close()
             return
@@ -1061,6 +1171,7 @@ class CVInputUI(ctk.CTk):
         y = self.winfo_y()
         self.geometry(f"{self.WIDTH}x{target_height}+{x}+{y}")
         self.update_idletasks()
+        self.update_child_windows_position()
 
     def rebuild_multi_slot_frame(self):
         self.destroy_multi_slot_frame()
