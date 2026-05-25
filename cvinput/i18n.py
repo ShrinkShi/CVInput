@@ -7,7 +7,7 @@ SUPPORTED_LANGUAGES = ("zh_cn", "en_us")
 DEFAULT_LANGUAGE = "zh_cn"
 
 BUILTIN_FALLBACK = {
-    "app.title": "CVInput",
+    "app.title": "CVI",
     "app.subtitle": "模拟键盘输入粘贴工具",
     "tooltip.settings": "设置",
     "tooltip.about": "关于",
@@ -63,7 +63,7 @@ BUILTIN_FALLBACK = {
     "status.hotkey_released_empty": "剪贴板无文本，{hotkey} 已释放",
     "status.hotkey_registered": "快捷键已注册：{hotkey}",
     "status.interval_updated": "输入间隔已更新：{interval}s",
-    "status.interval_invalid": "输入间隔需在 0.005 到 1.0 秒之间",
+    "status.interval_invalid": "输入间隔需在 0.001 到 5 秒之间",
     "status.defaults_restored": "已恢复默认设置",
     "status.slot_hotkey_failed": "槽位快捷键注册失败：{slots}",
     "status.slot_empty": "{slot} 槽位为空",

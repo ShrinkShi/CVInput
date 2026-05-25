@@ -361,7 +361,7 @@ class CVInputApp:
         except ValueError:
             self.ui.show_warning("interval", self.t("status.interval_invalid"))
             return
-        if not 0.005 <= interval <= 1.0:
+        if not 0.001 <= interval <= 5:
             self.ui.show_warning("interval", self.t("status.interval_invalid"))
             return
         self.config["interval"] = round(interval, 4)

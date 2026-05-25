@@ -89,6 +89,7 @@ class CVInputUI(ctk.CTk):
         self.slot_entries = []
         self.child_popups = []
         self.outside_click_binding = None
+        self.is_multi_slot_visible = False
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -272,7 +273,7 @@ class CVInputUI(ctk.CTk):
         if self.widget_exists(self.settings_window):
             self.center_child_window(self.settings_window, self, *self.SETTINGS_SIZE)
             self.settings_window.lift()
-            self.settings_window.focus()
+            self.settings_window.focus_force()
             return
 
         self.close_about()
@@ -403,12 +404,13 @@ class CVInputUI(ctk.CTk):
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
         self.center_child_window(win, self, *self.SETTINGS_SIZE)
         self.register_child_popup(win, self.close_settings)
+        win.after(20, win.focus_force)
 
     def open_about(self):
         if self.widget_exists(self.about_window):
             self.center_child_window(self.about_window, self, *self.ABOUT_SIZE)
             self.about_window.lift()
-            self.about_window.focus()
+            self.about_window.focus_force()
             return
 
         self.close_settings()
@@ -444,6 +446,7 @@ class CVInputUI(ctk.CTk):
         email_button.pack(side="left", padx=(4, 0))
         self.center_child_window(win, self, *self.ABOUT_SIZE)
         self.register_child_popup(win, self.close_about)
+        win.after(20, win.focus_force)
 
     def prepare_popup(self, win, width, height):
         win.overrideredirect(True)
@@ -486,8 +489,8 @@ class CVInputUI(ctk.CTk):
         child.update_idletasks()
         child_w = width or child.winfo_width() or child.winfo_reqwidth()
         child_h = height or child.winfo_height() or child.winfo_reqheight()
-        parent_x = parent.winfo_rootx()
-        parent_y = parent.winfo_rooty()
+        parent_x = parent.winfo_x()
+        parent_y = parent.winfo_y()
         parent_w = parent.winfo_width()
         parent_h = parent.winfo_height()
         screen_w = parent.winfo_screenwidth()
@@ -507,8 +510,35 @@ class CVInputUI(ctk.CTk):
     def register_child_popup(self, win, close_command):
         self.child_popups = [(popup, closer) for popup, closer in self.child_popups if self.widget_exists(popup)]
         self.child_popups.append((win, close_command))
+        win.bind(
+            "<FocusOut>",
+            lambda _event, popup=win, closer=close_command: self.schedule_child_focus_check(popup, closer),
+            add="+",
+        )
         if self.outside_click_binding is None:
             self.after(80, self.bind_outside_click_close)
+
+    def schedule_child_focus_check(self, win, close_command):
+        self.after(80, lambda popup=win, closer=close_command: self.close_child_popup_if_unfocused(popup, closer))
+
+    def close_child_popup_if_unfocused(self, win, close_command):
+        if not self.widget_exists(win):
+            self.forget_child_popup(win)
+            return
+        focused = self.focus_get()
+        if focused is not None and self.widget_belongs_to_window(focused, win):
+            return
+        if self.point_inside_window(self.winfo_pointerx(), self.winfo_pointery(), win):
+            return
+        close_command()
+
+    def widget_belongs_to_window(self, widget, win):
+        current = widget
+        while current is not None:
+            if current is win:
+                return True
+            current = getattr(current, "master", None)
+        return False
 
     def bind_outside_click_close(self):
         if self.outside_click_binding is None and self.child_popups:
@@ -675,14 +705,23 @@ class CVInputUI(ctk.CTk):
             self.multi_slot_switch.select() if enabled else self.multi_slot_switch.deselect()
 
     def set_multi_slot_visible(self, enabled):
+        self.update_multi_slot_visibility(enabled)
+
+    def update_multi_slot_visibility(self, enabled):
         self.set_multi_slot_switch(enabled)
-        if enabled:
+        self.is_multi_slot_visible = bool(enabled)
+        if self.is_multi_slot_visible:
             self.rebuild_multi_slot_frame()
             self.multi_slot_frame.pack(fill="x", padx=12, pady=(0, 6), before=self.action_frame)
-            self.geometry(f"{self.WIDTH}x{self.EXPANDED_HEIGHT}")
         else:
             self.destroy_multi_slot_frame()
-            self.geometry(f"{self.WIDTH}x{self.HEIGHT}")
+        self.rebuild_layout()
+
+    def rebuild_layout(self):
+        target_height = self.EXPANDED_HEIGHT if self.is_multi_slot_visible else self.HEIGHT
+        x = self.winfo_x()
+        y = self.winfo_y()
+        self.geometry(f"{self.WIDTH}x{target_height}+{x}+{y}")
         self.update_idletasks()
 
     def rebuild_multi_slot_frame(self):
@@ -720,6 +759,7 @@ class CVInputUI(ctk.CTk):
 
     def destroy_multi_slot_frame(self):
         if self.widget_exists(self.multi_slot_frame):
+            self.multi_slot_frame.pack_forget()
             self.multi_slot_frame.destroy()
         self.multi_slot_frame = None
         self.slot_entries = []
@@ -747,7 +787,7 @@ class CVInputUI(ctk.CTk):
         self.update_pin_button(enabled)
 
     def update_pin_button(self, enabled):
-        self.pin_button.configure(text="📌" if enabled else "📍")
+        self.pin_button.configure(text="📌", text_color="#6fb49d" if enabled else "#c7d0dc")
 
     def show_warning(self, _title, message):
         self.set_status(message, "error")

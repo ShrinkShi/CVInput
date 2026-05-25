@@ -1,5 +1,5 @@
 {
-  "app.title": "CVInput",
+  "app.title": "CVI",
   "app.subtitle": "Clipboard to Simulated Typing",
   "tooltip.settings": "Settings",
   "tooltip.about": "About",
@@ -55,7 +55,7 @@
   "status.hotkey_released_empty": "Hotkey released because clipboard text is empty: {hotkey}",
   "status.hotkey_registered": "Hotkey registered: {hotkey}",
   "status.interval_updated": "Typing interval updated: {interval}s",
-  "status.interval_invalid": "Typing interval must be between 0.005 and 1.0 seconds",
+  "status.interval_invalid": "Typing interval must be between 0.001 and 5 seconds",
   "status.defaults_restored": "Defaults restored",
   "status.slot_hotkey_failed": "Slot hotkey registration failed: {slots}",
   "status.slot_empty": "{slot} slot is empty",
