@@ -73,6 +73,8 @@ class CVInputUI(ctk.CTk):
         self.tooltips = {}
         self.drag_x = 0
         self.drag_y = 0
+        self.popup_drag_x = 0
+        self.popup_drag_y = 0
         self.map_binding = None
         self.language_codes = {}
 
@@ -367,25 +369,35 @@ class CVInputUI(ctk.CTk):
         return frame
 
     def popup_header(self, parent, title_key, close_command):
+        win = parent.winfo_toplevel()
         header = ctk.CTkFrame(parent, fg_color="transparent", height=34)
         header.pack(fill="x", padx=10, pady=(7, 3))
         header.pack_propagate(False)
-        ctk.CTkLabel(header, text=self.t(title_key), font=("Segoe UI", 13, "bold"), text_color=TEXT).pack(side="left")
+        title = ctk.CTkLabel(header, text=self.t(title_key), font=("Segoe UI", 13, "bold"), text_color=TEXT)
+        title.pack(side="left")
         close_button = self.icon_button(header, "×", close_command, "tooltip.close")
         close_button.pack(side="right")
+        for widget in (header, title):
+            widget.bind("<ButtonPress-1>", lambda event, target=win: self.start_popup_drag(target, event), add="+")
+            widget.bind("<B1-Motion>", lambda event, target=win: self.drag_popup(target, event), add="+")
 
     def position_popup(self, win, width, height):
+        self.update_idletasks()
+        win.update_idletasks()
         root_x = self.winfo_rootx()
         root_y = self.winfo_rooty()
         root_w = self.winfo_width()
         root_h = self.winfo_height()
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
-        x = root_x + root_w + 8
-        y = root_y
+        x = root_x + (root_w - width) // 2
+        y = root_y + (root_h - height) // 2
+        if x < 0:
+            x = 0
+        if y < 0:
+            y = 0
         if x + width > screen_w:
-            x = root_x
-            y = root_y + root_h + 8
+            x = max(0, screen_w - width - 8)
         if y + height > screen_h:
             y = max(0, screen_h - height - 40)
         win.geometry(f"{width}x{height}+{x}+{y}")
@@ -450,6 +462,13 @@ class CVInputUI(ctk.CTk):
 
     def drag_window(self, event):
         self.geometry(f"+{event.x_root - self.drag_x}+{event.y_root - self.drag_y}")
+
+    def start_popup_drag(self, win, event):
+        self.popup_drag_x = event.x_root - win.winfo_x()
+        self.popup_drag_y = event.y_root - win.winfo_y()
+
+    def drag_popup(self, win, event):
+        win.geometry(f"+{event.x_root - self.popup_drag_x}+{event.y_root - self.popup_drag_y}")
 
     def minimize_window(self):
         self.overrideredirect(False)
