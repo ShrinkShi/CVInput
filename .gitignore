@@ -8,9 +8,12 @@ __pycache__/
 .env.*
 build/
 dist/
+*.spec
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .DS_Store
 Thumbs.db
+make_icon.py
+icon.png
