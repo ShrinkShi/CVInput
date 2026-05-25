@@ -34,6 +34,8 @@ class ConfigStore:
                     data.setdefault("custom_interval_enabled", True)
                 except (TypeError, ValueError):
                     pass
+            if "input_hotkey" not in data and "hotkey" in data:
+                data["input_hotkey"] = data["hotkey"]
             config.update({key: data[key] for key in config.keys() & data.keys()})
         return config
 

@@ -31,9 +31,12 @@ class CVInputApp:
         self.ui = CVInputUI(self, self.config)
         self.main_hotkey_manager = HotkeyManager()
         self.slot_hotkey_manager = HotkeyManager(base_id=100)
+        self.toggle_hotkey_manager = HotkeyManager(base_id=200)
         self.main_hotkey_registered = False
         self.registered_main_hotkey = None
         self.slot_hotkeys_active = False
+        self.toggle_hotkey_registered = False
+        self.registered_toggle_hotkey = None
         self.clipboard_monitor = ClipboardMonitor(self.schedule_clipboard_update)
         self.typing_engine = TypingEngine()
         self.startup_manager = StartupManager()
@@ -57,12 +60,36 @@ class CVInputApp:
         self.config_store.save(self.config)
 
     def register_hotkey(self):
+        toggle_message = self.refresh_toggle_hotkey_registration(force=True)
         message = self.refresh_main_hotkey_registration(force=True)
         self.refresh_slot_hotkey_registration(force=True)
-        return message
+        return message or toggle_message
+
+    def refresh_toggle_hotkey_registration(self, force=False):
+        hotkey = str(self.config["hotkey_toggle_hotkey"])
+        if not force and self.toggle_hotkey_registered and self.registered_toggle_hotkey == hotkey:
+            return None
+        self.toggle_hotkey_manager.stop()
+        registered, failures = self.toggle_hotkey_manager.start_all({"toggle_hotkeys": hotkey}, self.on_hotkey)
+        if "toggle_hotkeys" not in registered:
+            self.toggle_hotkey_registered = False
+            self.registered_toggle_hotkey = None
+            self.ui.set_status(self.t("status.hotkey_toggle_failed"), "error")
+            return failures.get("toggle_hotkeys", self.t("status.hotkey_toggle_failed"))
+        self.toggle_hotkey_registered = True
+        self.registered_toggle_hotkey = hotkey
+        return None
 
     def refresh_main_hotkey_registration(self, force=False, show_status=True):
-        hotkey = str(self.config["hotkey"])
+        hotkey = str(self.config["input_hotkey"])
+        if not self.config.get("hotkeys_enabled", True):
+            if self.main_hotkey_registered or force:
+                self.main_hotkey_manager.stop()
+            self.main_hotkey_registered = False
+            self.registered_main_hotkey = None
+            if show_status:
+                self.ui.set_status(self.t("status.hotkeys_disabled"), "idle")
+            return None
         clipboard_empty = not self.ui.get_text().strip()
         should_release = bool(self.config["disable_hotkey_when_clipboard_empty"]) and clipboard_empty
         if should_release:
@@ -85,8 +112,8 @@ class CVInputApp:
             self.main_hotkey_registered = False
             self.registered_main_hotkey = None
             if show_status:
-                self.ui.set_status(self.t("status.hotkey_failed"), "error")
-            return failures.get("main", self.t("status.hotkey_failed"))
+                self.ui.set_status(self.t("status.input_hotkey_failed"), "error")
+            return failures.get("main", self.t("status.input_hotkey_failed"))
 
         self.main_hotkey_registered = True
         self.registered_main_hotkey = hotkey
@@ -95,7 +122,7 @@ class CVInputApp:
         return None
 
     def refresh_slot_hotkey_registration(self, force=False):
-        if not self.config["multi_slot_enabled"]:
+        if not self.config.get("hotkeys_enabled", True) or not self.config["multi_slot_enabled"]:
             self.slot_hotkey_manager.stop()
             self.slot_hotkeys_active = False
             return
@@ -115,8 +142,15 @@ class CVInputApp:
         if action == "main":
             self.start_typing_from_hotkey(release_keys)
             return
+        if action == "toggle_hotkeys":
+            self.toggle_hotkeys_enabled_from_hotkey(release_keys)
+            return
         if action.startswith("slot_"):
             self.start_typing_from_slot(int(action.split("_", 1)[1]), release_keys)
+
+    def toggle_hotkeys_enabled_from_hotkey(self, release_keys):
+        self.typing_engine._release_trigger_keys(release_keys)
+        self.set_hotkeys_enabled(not bool(self.config.get("hotkeys_enabled", True)))
 
     def start_typing_from_hotkey(self, release_keys):
         if self.config["disable_hotkey_when_clipboard_empty"] and not self.ui.get_text().strip():
@@ -275,6 +309,25 @@ class CVInputApp:
         self.ui.refresh_popup_blur_behavior()
         self.save_config()
 
+    def set_hotkeys_enabled(self, enabled):
+        self.config["hotkeys_enabled"] = bool(enabled)
+        self.ui.set_hotkeys_switch(bool(enabled))
+        self.save_config()
+        if not enabled:
+            self.main_hotkey_manager.stop()
+            self.slot_hotkey_manager.stop()
+            self.main_hotkey_registered = False
+            self.registered_main_hotkey = None
+            self.slot_hotkeys_active = False
+            self.ui.set_status(self.t("status.hotkeys_disabled"), "idle")
+            return
+        message = self.refresh_main_hotkey_registration(force=True, show_status=False)
+        self.refresh_slot_hotkey_registration(force=True)
+        if message:
+            self.ui.set_status(self.t("status.input_hotkey_failed"), "error")
+            return
+        self.ui.set_status(self.t("status.hotkeys_enabled"), "ready")
+
     def set_multi_slot_enabled(self, enabled):
         self.config["multi_slot_enabled"] = bool(enabled)
         self.ensure_multi_slots()
@@ -338,7 +391,8 @@ class CVInputApp:
 
     def restore_default_settings(self):
         old_startup = bool(self.config.get("startup_on_boot"))
-        old_hotkey = self.config.get("hotkey")
+        old_input_hotkey = self.config.get("input_hotkey")
+        old_toggle_hotkey = self.config.get("hotkey_toggle_hotkey")
         defaults = copy.deepcopy(DEFAULT_CONFIG)
         self.config.clear()
         self.config.update(defaults)
@@ -351,35 +405,61 @@ class CVInputApp:
         self.tray_manager.refresh_menu()
         message = self.register_hotkey()
         if message:
-            self.config["hotkey"] = old_hotkey
+            self.config["input_hotkey"] = old_input_hotkey
+            self.config["hotkey_toggle_hotkey"] = old_toggle_hotkey
             self.register_hotkey()
-            self.ui.show_warning("hotkey", self.t("status.hotkey_failed"))
+            self.ui.show_warning("hotkey", self.t("status.input_hotkey_failed"))
             return
         self.save_config()
         self.ui.refresh_texts(rebuild_popups=True)
         self.ui.set_status(self.t("status.defaults_restored"), "ready")
 
-    def apply_settings_hotkey(self, hotkey):
+    def apply_settings_input_hotkey(self, hotkey):
         if not hotkey:
             self.ui.show_warning("hotkey", self.t("status.hotkey_empty"))
             return
         try:
             self.main_hotkey_manager.parse_hotkey(hotkey)
         except ValueError:
-            self.ui.show_warning("hotkey", self.t("status.hotkey_failed"))
+            self.ui.show_warning("hotkey", self.t("status.input_hotkey_failed"))
             return
 
-        old_hotkey = self.config["hotkey"]
-        self.config["hotkey"] = hotkey
+        old_hotkey = self.config["input_hotkey"]
+        self.config["input_hotkey"] = hotkey
         message = self.refresh_main_hotkey_registration(force=True)
         if message:
-            self.config["hotkey"] = old_hotkey
+            self.config["input_hotkey"] = old_hotkey
             self.refresh_main_hotkey_registration(force=True)
-            self.ui.show_warning("hotkey", self.t("status.hotkey_failed"))
+            self.ui.show_warning("hotkey", self.t("status.input_hotkey_failed"))
             return
 
         self.save_config()
         self.ui.set_status(self.t("status.hotkey_applied", hotkey=hotkey), "ready")
+
+    def apply_settings_hotkey(self, hotkey):
+        self.apply_settings_input_hotkey(hotkey)
+
+    def apply_settings_hotkey_toggle_hotkey(self, hotkey):
+        if not hotkey:
+            self.ui.show_warning("hotkey", self.t("status.hotkey_empty"))
+            return
+        try:
+            self.toggle_hotkey_manager.parse_hotkey(hotkey)
+        except ValueError:
+            self.ui.show_warning("hotkey", self.t("status.hotkey_toggle_failed"))
+            return
+
+        old_hotkey = self.config["hotkey_toggle_hotkey"]
+        self.config["hotkey_toggle_hotkey"] = hotkey
+        message = self.refresh_toggle_hotkey_registration(force=True)
+        if message:
+            self.config["hotkey_toggle_hotkey"] = old_hotkey
+            self.refresh_toggle_hotkey_registration(force=True)
+            self.ui.show_warning("hotkey", self.t("status.hotkey_toggle_failed"))
+            return
+
+        self.save_config()
+        self.ui.set_status(self.t("status.hotkey_toggle_applied", hotkey=hotkey), "ready")
 
     def apply_settings_interval(self, interval_text):
         try:
@@ -452,6 +532,7 @@ class CVInputApp:
         self.clipboard_monitor.stop()
         self.main_hotkey_manager.stop()
         self.slot_hotkey_manager.stop()
+        self.toggle_hotkey_manager.stop()
         self.tray_manager.stop()
         self.save_config()
         self.ui.destroy()

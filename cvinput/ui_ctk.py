@@ -64,13 +64,14 @@ class Tooltip:
 
 
 class CVInputUI(ctk.CTk):
-    WIDTH = 360
+    WIDTH = 380
     HEIGHT = 210
     EXPANDED_HEIGHT = 620
     SLOT_FRAME_HEIGHT = 392
     SLOT_TEXTBOX_HEIGHT = 30
     SETTINGS_SIZE = (344, 486)
     ABOUT_SIZE = (372, 338)
+    HELP_SIZE = (372, 360)
 
     def __init__(self, controller, config):
         super().__init__()
@@ -78,6 +79,7 @@ class CVInputUI(ctk.CTk):
         self.config = config
         self.settings_window = None
         self.about_window = None
+        self.help_window = None
         self.tooltips = {}
         self.drag_x = 0
         self.drag_y = 0
@@ -124,9 +126,9 @@ class CVInputUI(ctk.CTk):
         self.titlebar = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=48)
         self.titlebar.pack(fill="x", padx=8, pady=(5, 2))
         self.titlebar.pack_propagate(False)
-        self.titlebar.grid_columnconfigure(0, weight=0, minsize=76)
+        self.titlebar.grid_columnconfigure(0, weight=0, minsize=104)
         self.titlebar.grid_columnconfigure(1, weight=1)
-        self.titlebar.grid_columnconfigure(2, weight=0, minsize=86)
+        self.titlebar.grid_columnconfigure(2, weight=0, minsize=104)
 
         self.left_tools = ctk.CTkFrame(self.titlebar, fg_color="transparent")
         self.left_tools.grid(row=0, column=0, sticky="w")
@@ -134,6 +136,8 @@ class CVInputUI(ctk.CTk):
         self.settings_button.pack(side="left")
         self.about_button = self.icon_button(self.left_tools, "ⓘ", self.open_about, "tooltip.about")
         self.about_button.pack(side="left", padx=(2, 0))
+        self.help_button = self.icon_button(self.left_tools, "❓", self.open_help, "tooltip.help", font=("Segoe UI Emoji", 13))
+        self.help_button.pack(side="left", padx=(2, 0))
 
         self.title_group = ctk.CTkFrame(self.titlebar, fg_color="transparent")
         self.title_group.grid(row=0, column=1, sticky="nsew")
@@ -202,19 +206,43 @@ class CVInputUI(ctk.CTk):
         self.read_button.pack(side="left", padx=(3, 0))
         self.progress_bar = ctk.CTkProgressBar(
             self.action_frame,
-            width=128,
+            width=78,
             height=5,
             corner_radius=4,
             fg_color="#242a33",
             progress_color="#6fb49d",
         )
         self.progress_bar.set(0)
-        self.progress_bar.pack(side="left", padx=(9, 0), pady=(12, 0))
+        self.progress_bar.pack(side="left", padx=(8, 0), pady=(12, 0))
+        self.progress_percent_label = ctk.CTkLabel(
+            self.action_frame,
+            text="",
+            width=38,
+            anchor="w",
+            font=("Segoe UI", 9),
+            text_color=MUTED,
+        )
+        self.progress_percent_label.pack(side="left", padx=(5, 0), pady=(5, 0))
+
+        self.hotkeys_switch = ctk.CTkSwitch(
+            self.action_frame,
+            text="",
+            width=54,
+            switch_width=30,
+            switch_height=16,
+            progress_color=ACCENT,
+            button_color="#dce4ee",
+            font=("Segoe UI", 10),
+            command=lambda: self.controller.set_hotkeys_enabled(bool(self.hotkeys_switch.get())),
+        )
+        self.hotkeys_switch.pack(side="right", pady=(4, 0))
+        if self.config.get("hotkeys_enabled", True):
+            self.hotkeys_switch.select()
 
         self.listen_switch = ctk.CTkSwitch(
             self.action_frame,
             text="",
-            width=62,
+            width=54,
             switch_width=30,
             switch_height=16,
             progress_color=ACCENT,
@@ -222,7 +250,7 @@ class CVInputUI(ctk.CTk):
             font=("Segoe UI", 10),
             command=lambda: self.controller.set_clipboard_listener(bool(self.listen_switch.get())),
         )
-        self.listen_switch.pack(side="right", pady=(4, 0))
+        self.listen_switch.pack(side="right", padx=(0, 8), pady=(4, 0))
         if self.config["auto_clipboard"]:
             self.listen_switch.select()
 
@@ -257,27 +285,33 @@ class CVInputUI(ctk.CTk):
         self.title_label.configure(text=self.t("app.title"))
         self.subtitle_label.configure(text=self.t("app.subtitle"))
         self.listen_switch.configure(text=self.t("label.listen"))
+        self.hotkeys_switch.configure(text=self.t("label.hotkeys"))
         for _button, (key, tooltip) in self.tooltips.items():
             tooltip.set_text(self.t(key))
         self.update_pin_button(bool(self.config["always_on_top"]))
         if rebuild_popups:
             settings_open = self.widget_exists(self.settings_window)
             about_open = self.widget_exists(self.about_window)
+            help_open = self.widget_exists(self.help_window)
             if settings_open:
                 self.close_settings()
                 self.after(10, self.open_settings)
             if about_open:
                 self.close_about()
                 self.after(10, self.open_about)
+            if help_open:
+                self.close_help()
+                self.after(10, self.open_help)
 
     def open_settings(self):
         if self.widget_exists(self.settings_window):
-            self.position_settings_window(self.settings_window, *self.SETTINGS_SIZE)
+            self.place_settings_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
             self.settings_window.lift()
             self.settings_window.focus_force()
             return
 
         self.close_about()
+        self.close_help()
         win = ctk.CTkToplevel(self)
         self.settings_window = win
         self.prepare_popup(win, *self.SETTINGS_SIZE)
@@ -289,11 +323,25 @@ class CVInputUI(ctk.CTk):
 
         hotkey_row = ctk.CTkFrame(content, fg_color="transparent")
         hotkey_row.pack(fill="x", pady=(2, 5))
-        ctk.CTkLabel(hotkey_row, text=self.t("label.hotkey"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
-        self.hotkey_entry = self.setting_entry(hotkey_row, str(self.config["hotkey"]))
-        self.hotkey_entry.pack(side="left", fill="x", expand=True)
-        self.apply_hotkey_button = self.icon_button(hotkey_row, "✓", self.apply_hotkey_from_settings, "tooltip.apply_hotkey")
+        ctk.CTkLabel(hotkey_row, text=self.t("label.input_hotkey"), width=96, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.input_hotkey_entry = self.setting_entry(hotkey_row, str(self.config["input_hotkey"]))
+        self.input_hotkey_entry.pack(side="left", fill="x", expand=True)
+        self.hotkey_entry = self.input_hotkey_entry
+        self.apply_hotkey_button = self.icon_button(hotkey_row, "✓", self.apply_input_hotkey_from_settings, "tooltip.apply_hotkey")
         self.apply_hotkey_button.pack(side="left", padx=(5, 0))
+
+        hotkey_toggle_row = ctk.CTkFrame(content, fg_color="transparent")
+        hotkey_toggle_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(hotkey_toggle_row, text=self.t("label.hotkey_toggle_hotkey"), width=96, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.hotkey_toggle_entry = self.setting_entry(hotkey_toggle_row, str(self.config["hotkey_toggle_hotkey"]))
+        self.hotkey_toggle_entry.pack(side="left", fill="x", expand=True)
+        self.apply_hotkey_toggle_button = self.icon_button(
+            hotkey_toggle_row,
+            "✓",
+            self.apply_hotkey_toggle_from_settings,
+            "tooltip.apply_hotkey",
+        )
+        self.apply_hotkey_toggle_button.pack(side="left", padx=(5, 0))
 
         interval_row = ctk.CTkFrame(content, fg_color="transparent")
         interval_row.pack(fill="x", pady=4)
@@ -424,7 +472,7 @@ class CVInputUI(ctk.CTk):
 
         self.settings_status = ctk.CTkLabel(frame, text="", anchor="w", font=("Segoe UI", 10), text_color=MUTED, height=18)
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
-        self.position_settings_window(win, *self.SETTINGS_SIZE)
+        self.place_settings_window_near_main(win, *self.SETTINGS_SIZE)
         self.register_child_popup(win, self.close_settings)
         win.after(20, win.focus_force)
 
@@ -436,6 +484,7 @@ class CVInputUI(ctk.CTk):
             return
 
         self.close_settings()
+        self.close_help()
         win = ctk.CTkToplevel(self)
         self.about_window = win
         self.prepare_popup(win, *self.ABOUT_SIZE)
@@ -474,6 +523,42 @@ class CVInputUI(ctk.CTk):
         ).pack(anchor="w", fill="x")
         self.center_child_window(win, self, *self.ABOUT_SIZE)
         self.register_child_popup(win, self.close_about)
+        win.after(20, win.focus_force)
+
+    def open_help(self):
+        if self.widget_exists(self.help_window):
+            self.center_child_window(self.help_window, self, *self.HELP_SIZE)
+            self.help_window.lift()
+            self.help_window.focus_force()
+            return
+
+        self.close_settings()
+        self.close_about()
+        win = ctk.CTkToplevel(self)
+        self.help_window = win
+        self.prepare_popup(win, *self.HELP_SIZE)
+        frame = self.popup_frame(win)
+        self.popup_header(frame, "label.help", self.close_help)
+
+        body = ctk.CTkFrame(frame, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+        ctk.CTkLabel(
+            body,
+            text=self.t("help.heading"),
+            font=("Segoe UI", 13, "bold"),
+            text_color=TEXT,
+        ).pack(anchor="w", pady=(2, 8))
+        ctk.CTkLabel(
+            body,
+            text=self.t("help.body"),
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+            wraplength=self.HELP_SIZE[0] - 36,
+            justify="left",
+        ).pack(anchor="w", fill="x")
+
+        self.center_child_window(win, self, *self.HELP_SIZE)
+        self.register_child_popup(win, self.close_help)
         win.after(20, win.focus_force)
 
     def prepare_popup(self, win, width, height):
@@ -515,7 +600,7 @@ class CVInputUI(ctk.CTk):
     def position_popup(self, win, width, height):
         self.center_child_window(win, self, width, height)
 
-    def position_settings_window(self, win, width, height):
+    def place_settings_window_near_main(self, win, width, height):
         self.update_idletasks()
         win.update_idletasks()
         root_x = self.winfo_x()
@@ -523,15 +608,21 @@ class CVInputUI(ctk.CTk):
         root_w = self.winfo_width()
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
-        x = root_x - width
+        gap = 10
+        x = root_x - width - gap
         if x < 0:
-            x = root_x + root_w
+            x = root_x + root_w + gap
         if x + width > screen_w:
             x = max(0, screen_w - width - 8)
         y = root_y
+        if y < 0:
+            y = 0
         if y + height > screen_h:
             y = max(0, screen_h - height - 40)
         win.geometry(f"{width}x{height}+{x}+{y}")
+
+    def position_settings_window(self, win, width, height):
+        self.place_settings_window_near_main(win, width, height)
 
     def center_child_window(self, child, parent, width=None, height=None):
         parent.update_idletasks()
@@ -598,7 +689,7 @@ class CVInputUI(ctk.CTk):
     def close_child_popups_on_outside_click(self, event):
         if not self.config.get("close_popup_on_blur", True):
             return
-        if event.widget in (self.settings_button, self.about_button):
+        if event.widget in (self.settings_button, self.about_button, self.help_button):
             return
         for popup, close_command in list(self.child_popups):
             if not self.widget_exists(popup):
@@ -634,6 +725,14 @@ class CVInputUI(ctk.CTk):
         if win is not None:
             self.forget_child_popup(win)
         self.about_window = None
+
+    def close_help(self):
+        win = self.help_window
+        if self.widget_exists(win):
+            win.destroy()
+        if win is not None:
+            self.forget_child_popup(win)
+        self.help_window = None
 
     def setting_entry(self, parent, value):
         entry = ctk.CTkEntry(
@@ -673,7 +772,13 @@ class CVInputUI(ctk.CTk):
         return switch
 
     def apply_hotkey_from_settings(self):
-        self.controller.apply_settings_hotkey(self.hotkey_entry.get().strip())
+        self.apply_input_hotkey_from_settings()
+
+    def apply_input_hotkey_from_settings(self):
+        self.controller.apply_settings_input_hotkey(self.input_hotkey_entry.get().strip())
+
+    def apply_hotkey_toggle_from_settings(self):
+        self.controller.apply_settings_hotkey_toggle_hotkey(self.hotkey_toggle_entry.get().strip())
 
     def apply_interval_from_settings(self):
         self.controller.apply_settings_interval(self.interval_entry.get().strip())
@@ -740,6 +845,12 @@ class CVInputUI(ctk.CTk):
             self.listen_switch.deselect()
             if self.widget_exists(getattr(self, "clipboard_switch", None)):
                 self.clipboard_switch.deselect()
+
+    def set_hotkeys_switch(self, enabled):
+        if enabled:
+            self.hotkeys_switch.select()
+        else:
+            self.hotkeys_switch.deselect()
 
     def set_disable_empty_switch(self, enabled):
         if self.widget_exists(getattr(self, "disable_empty_switch", None)):
@@ -856,13 +967,13 @@ class CVInputUI(ctk.CTk):
     def set_opacity_value(self, value):
         alpha = float(value)
         self.attributes("-alpha", alpha)
-        for win in (self.settings_window, self.about_window):
+        for win in (self.settings_window, self.about_window, self.help_window):
             if self.widget_exists(win):
                 win.attributes("-alpha", alpha)
 
     def set_topmost_value(self, enabled):
         self.attributes("-topmost", bool(enabled))
-        for win in (self.settings_window, self.about_window):
+        for win in (self.settings_window, self.about_window, self.help_window):
             if self.widget_exists(win):
                 win.attributes("-topmost", bool(enabled))
         self.update_pin_button(enabled)
@@ -875,12 +986,23 @@ class CVInputUI(ctk.CTk):
 
     def reset_input_progress(self):
         self.progress_bar.set(0)
+        self.progress_percent_label.configure(text="")
 
     def set_input_progress(self, done, total):
         if total <= 0:
             self.progress_bar.set(0)
+            self.progress_percent_label.configure(text="")
             return
-        self.progress_bar.set(min(max(done / total, 0), 1))
+        ratio = min(max(done / total, 0), 1)
+        self.progress_bar.set(ratio)
+        percent = ratio * 100
+        if percent <= 0:
+            text = ""
+        elif percent >= 99.95:
+            text = "100%"
+        else:
+            text = f"{percent:.1f}%"
+        self.progress_percent_label.configure(text=text)
 
     def sync_config_controls(self):
         self.set_clipboard_switch(bool(self.config["auto_clipboard"]))
@@ -894,12 +1016,15 @@ class CVInputUI(ctk.CTk):
         self.set_startup_switch(bool(self.config["startup_on_boot"]))
         self.set_remember_settings_switch(bool(self.config["remember_settings"]))
         self.set_close_popup_on_blur_switch(bool(self.config["close_popup_on_blur"]))
+        self.set_hotkeys_switch(bool(self.config.get("hotkeys_enabled", True)))
         self.set_topmost_value(bool(self.config["always_on_top"]))
         self.set_opacity_value(float(self.config["opacity"]))
         if self.widget_exists(getattr(self, "clear_switch", None)):
             self.clear_switch.select() if self.config["clear_after_input"] else self.clear_switch.deselect()
-        if self.widget_exists(getattr(self, "hotkey_entry", None)):
-            self.replace_entry_text(self.hotkey_entry, str(self.config["hotkey"]))
+        if self.widget_exists(getattr(self, "input_hotkey_entry", None)):
+            self.replace_entry_text(self.input_hotkey_entry, str(self.config["input_hotkey"]))
+        if self.widget_exists(getattr(self, "hotkey_toggle_entry", None)):
+            self.replace_entry_text(self.hotkey_toggle_entry, str(self.config["hotkey_toggle_hotkey"]))
         if self.widget_exists(getattr(self, "interval_entry", None)):
             self.replace_entry_text(self.interval_entry, str(self.config["interval_ms"]))
         if self.widget_exists(getattr(self, "opacity_slider", None)):
