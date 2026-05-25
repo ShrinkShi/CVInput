@@ -69,8 +69,8 @@ class CVInputUI(ctk.CTk):
     EXPANDED_HEIGHT = 620
     SLOT_FRAME_HEIGHT = 392
     SLOT_TEXTBOX_HEIGHT = 30
-    SETTINGS_SIZE = (344, 454)
-    ABOUT_SIZE = (314, 226)
+    SETTINGS_SIZE = (344, 486)
+    ABOUT_SIZE = (372, 338)
 
     def __init__(self, controller, config):
         super().__init__()
@@ -90,6 +90,7 @@ class CVInputUI(ctk.CTk):
         self.child_popups = []
         self.outside_click_binding = None
         self.is_multi_slot_visible = False
+        self.interval_row = None
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -271,7 +272,7 @@ class CVInputUI(ctk.CTk):
 
     def open_settings(self):
         if self.widget_exists(self.settings_window):
-            self.center_child_window(self.settings_window, self, *self.SETTINGS_SIZE)
+            self.position_settings_window(self.settings_window, *self.SETTINGS_SIZE)
             self.settings_window.lift()
             self.settings_window.focus_force()
             return
@@ -297,10 +298,19 @@ class CVInputUI(ctk.CTk):
         interval_row = ctk.CTkFrame(content, fg_color="transparent")
         interval_row.pack(fill="x", pady=4)
         ctk.CTkLabel(interval_row, text=self.t("label.interval"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
-        self.interval_entry = self.setting_entry(interval_row, str(self.config["interval"]))
+        self.custom_interval_switch = self.setting_switch(
+            content,
+            "label.custom_interval_enabled",
+            self.config["custom_interval_enabled"],
+            lambda: self.controller.set_custom_interval_enabled(bool(self.custom_interval_switch.get())),
+        )
+
+        self.interval_row = interval_row
+        self.interval_entry = self.setting_entry(interval_row, str(self.config["interval_ms"]))
         self.interval_entry.pack(side="left", fill="x", expand=True)
         self.apply_interval_button = self.icon_button(interval_row, "✓", self.apply_interval_from_settings, "tooltip.apply_interval")
         self.apply_interval_button.pack(side="left", padx=(5, 0))
+        self.set_interval_controls_visible(bool(self.config["custom_interval_enabled"]))
 
         self.clipboard_switch = self.setting_switch(
             content,
@@ -349,6 +359,18 @@ class CVInputUI(ctk.CTk):
             "label.startup_on_boot",
             self.config["startup_on_boot"],
             lambda: self.controller.set_startup_on_boot(bool(self.startup_switch.get())),
+        )
+        self.remember_settings_switch = self.setting_switch(
+            content,
+            "label.remember_settings",
+            self.config["remember_settings"],
+            lambda: self.controller.set_remember_settings(bool(self.remember_settings_switch.get())),
+        )
+        self.close_popup_on_blur_switch = self.setting_switch(
+            content,
+            "label.close_popup_on_blur",
+            self.config["close_popup_on_blur"],
+            lambda: self.controller.set_close_popup_on_blur(bool(self.close_popup_on_blur_switch.get())),
         )
 
         opacity_row = ctk.CTkFrame(content, fg_color="transparent")
@@ -402,7 +424,7 @@ class CVInputUI(ctk.CTk):
 
         self.settings_status = ctk.CTkLabel(frame, text="", anchor="w", font=("Segoe UI", 10), text_color=MUTED, height=18)
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
-        self.center_child_window(win, self, *self.SETTINGS_SIZE)
+        self.position_settings_window(win, *self.SETTINGS_SIZE)
         self.register_child_popup(win, self.close_settings)
         win.after(20, win.focus_force)
 
@@ -426,24 +448,30 @@ class CVInputUI(ctk.CTk):
         )
         watermark.place(relx=0.5, rely=0.55, anchor="center")
 
-        self.popup_header(frame, "label.about", self.close_about)
+        self.popup_header(
+            frame,
+            "label.about_with_product",
+            self.close_about,
+            actions=[
+                ("G", self.controller.open_github, "tooltip.github"),
+                ("@", self.controller.copy_email, "tooltip.email"),
+            ],
+        )
         body = ctk.CTkFrame(frame, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=16, pady=(0, 10))
 
-        top = ctk.CTkFrame(body, fg_color="transparent")
-        top.pack(fill="x")
-        ctk.CTkLabel(top, text=APP_NAME, font=("Segoe UI", 16, "bold"), text_color=TEXT).pack(side="left")
-        ctk.CTkLabel(top, text=f"v{APP_VERSION}", font=("Segoe UI", 10), text_color=MUTED).pack(side="right")
-        ctk.CTkLabel(body, text=f"{self.t('label.author')}: {self.t('about.author')}", font=("Segoe UI", 11), text_color="#c6ced9").pack(anchor="w", pady=(8, 0))
-        ctk.CTkLabel(body, text=self.t("about.description"), font=("Segoe UI", 11), text_color="#c6ced9").pack(anchor="w")
-        ctk.CTkLabel(body, text=self.t("about.idea"), font=("Segoe UI", 10), text_color="#6fb49d").pack(anchor="w", pady=(1, 6))
-
-        actions = ctk.CTkFrame(body, fg_color="transparent")
-        actions.pack(fill="x")
-        github_button = self.icon_button(actions, "G", self.controller.open_github, "tooltip.github")
-        github_button.pack(side="left")
-        email_button = self.icon_button(actions, "@", self.controller.copy_email, "tooltip.email")
-        email_button.pack(side="left", padx=(4, 0))
+        meta = ctk.CTkFrame(body, fg_color="transparent")
+        meta.pack(fill="x", pady=(2, 6))
+        ctk.CTkLabel(meta, text=f"{self.t('label.author')}: {self.t('about.author')}", font=("Segoe UI", 11), text_color="#c6ced9").pack(side="left")
+        ctk.CTkLabel(meta, text=f"v{APP_VERSION}", font=("Segoe UI", 10), text_color=MUTED).pack(side="right")
+        ctk.CTkLabel(
+            body,
+            text=self.t("about.long_description"),
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+            wraplength=self.ABOUT_SIZE[0] - 34,
+            justify="left",
+        ).pack(anchor="w", fill="x")
         self.center_child_window(win, self, *self.ABOUT_SIZE)
         self.register_child_popup(win, self.close_about)
         win.after(20, win.focus_force)
@@ -468,7 +496,7 @@ class CVInputUI(ctk.CTk):
         except Exception:
             win.configure(fg_color=SURFACE)
 
-    def popup_header(self, parent, title_key, close_command):
+    def popup_header(self, parent, title_key, close_command, actions=None):
         win = parent.winfo_toplevel()
         header = ctk.CTkFrame(parent, fg_color="transparent", height=34)
         header.pack(fill="x", padx=10, pady=(7, 3))
@@ -477,12 +505,33 @@ class CVInputUI(ctk.CTk):
         title.pack(side="left")
         close_button = self.icon_button(header, "×", close_command, "tooltip.close")
         close_button.pack(side="right")
+        for text, command, tooltip_key in reversed(actions or []):
+            button = self.icon_button(header, text, command, tooltip_key)
+            button.pack(side="right", padx=(0, 3))
         for widget in (header, title):
             widget.bind("<ButtonPress-1>", lambda event, target=win: self.start_popup_drag(target, event), add="+")
             widget.bind("<B1-Motion>", lambda event, target=win: self.drag_popup(target, event), add="+")
 
     def position_popup(self, win, width, height):
         self.center_child_window(win, self, width, height)
+
+    def position_settings_window(self, win, width, height):
+        self.update_idletasks()
+        win.update_idletasks()
+        root_x = self.winfo_x()
+        root_y = self.winfo_y()
+        root_w = self.winfo_width()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        x = root_x - width
+        if x < 0:
+            x = root_x + root_w
+        if x + width > screen_w:
+            x = max(0, screen_w - width - 8)
+        y = root_y
+        if y + height > screen_h:
+            y = max(0, screen_h - height - 40)
+        win.geometry(f"{width}x{height}+{x}+{y}")
 
     def center_child_window(self, child, parent, width=None, height=None):
         parent.update_idletasks()
@@ -515,13 +564,15 @@ class CVInputUI(ctk.CTk):
             lambda _event, popup=win, closer=close_command: self.schedule_child_focus_check(popup, closer),
             add="+",
         )
-        if self.outside_click_binding is None:
+        if self.config.get("close_popup_on_blur", True) and self.outside_click_binding is None:
             self.after(80, self.bind_outside_click_close)
 
     def schedule_child_focus_check(self, win, close_command):
         self.after(80, lambda popup=win, closer=close_command: self.close_child_popup_if_unfocused(popup, closer))
 
     def close_child_popup_if_unfocused(self, win, close_command):
+        if not self.config.get("close_popup_on_blur", True):
+            return
         if not self.widget_exists(win):
             self.forget_child_popup(win)
             return
@@ -541,10 +592,12 @@ class CVInputUI(ctk.CTk):
         return False
 
     def bind_outside_click_close(self):
-        if self.outside_click_binding is None and self.child_popups:
+        if self.config.get("close_popup_on_blur", True) and self.outside_click_binding is None and self.child_popups:
             self.outside_click_binding = self.bind("<ButtonPress-1>", self.close_child_popups_on_outside_click, add="+")
 
     def close_child_popups_on_outside_click(self, event):
+        if not self.config.get("close_popup_on_blur", True):
+            return
         if event.widget in (self.settings_button, self.about_button):
             return
         for popup, close_command in list(self.child_popups):
@@ -704,6 +757,34 @@ class CVInputUI(ctk.CTk):
         if self.widget_exists(getattr(self, "multi_slot_switch", None)):
             self.multi_slot_switch.select() if enabled else self.multi_slot_switch.deselect()
 
+    def set_custom_interval_switch(self, enabled):
+        if self.widget_exists(getattr(self, "custom_interval_switch", None)):
+            self.custom_interval_switch.select() if enabled else self.custom_interval_switch.deselect()
+
+    def set_remember_settings_switch(self, enabled):
+        if self.widget_exists(getattr(self, "remember_settings_switch", None)):
+            self.remember_settings_switch.select() if enabled else self.remember_settings_switch.deselect()
+
+    def set_close_popup_on_blur_switch(self, enabled):
+        if self.widget_exists(getattr(self, "close_popup_on_blur_switch", None)):
+            self.close_popup_on_blur_switch.select() if enabled else self.close_popup_on_blur_switch.deselect()
+
+    def set_interval_controls_visible(self, enabled):
+        if not self.widget_exists(getattr(self, "interval_row", None)):
+            return
+        self.interval_row.pack_forget()
+        if enabled:
+            self.interval_row.pack(fill="x", pady=4, after=self.custom_interval_switch)
+
+    def refresh_popup_blur_behavior(self):
+        if self.config.get("close_popup_on_blur", True):
+            if self.child_popups and self.outside_click_binding is None:
+                self.bind_outside_click_close()
+            return
+        if self.outside_click_binding is not None:
+            self.unbind("<ButtonPress-1>", self.outside_click_binding)
+            self.outside_click_binding = None
+
     def set_multi_slot_visible(self, enabled):
         self.update_multi_slot_visibility(enabled)
 
@@ -806,9 +887,13 @@ class CVInputUI(ctk.CTk):
         self.set_disable_empty_switch(bool(self.config["disable_hotkey_when_clipboard_empty"]))
         self.set_ime_switch(bool(self.config["toggle_ime_with_shift"]))
         self.set_newline_switch(bool(self.config["newline_with_shift_enter"]))
+        self.set_custom_interval_switch(bool(self.config["custom_interval_enabled"]))
+        self.set_interval_controls_visible(bool(self.config["custom_interval_enabled"]))
         self.set_multi_slot_visible(bool(self.config["multi_slot_enabled"]))
         self.set_close_to_tray_switch(bool(self.config["close_to_tray"]))
         self.set_startup_switch(bool(self.config["startup_on_boot"]))
+        self.set_remember_settings_switch(bool(self.config["remember_settings"]))
+        self.set_close_popup_on_blur_switch(bool(self.config["close_popup_on_blur"]))
         self.set_topmost_value(bool(self.config["always_on_top"]))
         self.set_opacity_value(float(self.config["opacity"]))
         if self.widget_exists(getattr(self, "clear_switch", None)):
@@ -816,7 +901,7 @@ class CVInputUI(ctk.CTk):
         if self.widget_exists(getattr(self, "hotkey_entry", None)):
             self.replace_entry_text(self.hotkey_entry, str(self.config["hotkey"]))
         if self.widget_exists(getattr(self, "interval_entry", None)):
-            self.replace_entry_text(self.interval_entry, str(self.config["interval"]))
+            self.replace_entry_text(self.interval_entry, str(self.config["interval_ms"]))
         if self.widget_exists(getattr(self, "opacity_slider", None)):
             self.opacity_slider.set(float(self.config["opacity"]))
         if self.widget_exists(getattr(self, "language_menu", None)):

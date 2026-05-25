@@ -6,7 +6,7 @@ import pyperclip
 
 from .clipboard import ClipboardMonitor
 from .config import ConfigStore
-from .constants import APP_NAME, DEFAULT_CONFIG
+from .constants import APP_NAME, DEFAULT_CONFIG, DEFAULT_INTERVAL_MS
 from .hotkey import HotkeyManager
 from .ime import maybe_toggle_ime_before_typing, restore_ime_after_typing
 from .i18n import Translator
@@ -149,10 +149,19 @@ class CVInputApp:
         self.ui.set_status(self.t("status.typing"), "working")
         self.typing_thread = threading.Thread(
             target=self._typing_worker,
-            args=(text, float(self.config["interval"]), release_keys),
+            args=(text, self.input_interval_seconds(), release_keys),
             daemon=True,
         )
         self.typing_thread.start()
+
+    def input_interval_seconds(self):
+        interval_ms = DEFAULT_INTERVAL_MS
+        if self.config.get("custom_interval_enabled", False):
+            try:
+                interval_ms = float(self.config.get("interval_ms", DEFAULT_INTERVAL_MS))
+            except (TypeError, ValueError):
+                interval_ms = DEFAULT_INTERVAL_MS
+        return interval_ms / 1000
 
     def _typing_worker(self, text, interval, release_keys):
         should_restore_ime = False
@@ -247,6 +256,23 @@ class CVInputApp:
     def set_newline_with_shift_enter(self, enabled):
         self.config["newline_with_shift_enter"] = bool(enabled)
         self.ui.set_newline_switch(bool(enabled))
+        self.save_config()
+
+    def set_custom_interval_enabled(self, enabled):
+        self.config["custom_interval_enabled"] = bool(enabled)
+        self.ui.set_custom_interval_switch(bool(enabled))
+        self.ui.set_interval_controls_visible(bool(enabled))
+        self.save_config()
+
+    def set_remember_settings(self, enabled):
+        self.config["remember_settings"] = bool(enabled)
+        self.ui.set_remember_settings_switch(bool(enabled))
+        self.save_config()
+
+    def set_close_popup_on_blur(self, enabled):
+        self.config["close_popup_on_blur"] = bool(enabled)
+        self.ui.set_close_popup_on_blur_switch(bool(enabled))
+        self.ui.refresh_popup_blur_behavior()
         self.save_config()
 
     def set_multi_slot_enabled(self, enabled):
@@ -357,17 +383,17 @@ class CVInputApp:
 
     def apply_settings_interval(self, interval_text):
         try:
-            interval = float(interval_text)
+            interval_ms = float(interval_text)
         except ValueError:
             self.ui.show_warning("interval", self.t("status.interval_invalid"))
             return
-        if not 0.001 <= interval <= 5:
+        if not 0.1 <= interval_ms <= 10000:
             self.ui.show_warning("interval", self.t("status.interval_invalid"))
             return
-        self.config["interval"] = round(interval, 4)
+        self.config["interval_ms"] = round(interval_ms, 3)
         self.save_config()
         self.ui.sync_config_controls()
-        self.ui.set_status(self.t("status.interval_updated", interval=self.config["interval"]), "ready")
+        self.ui.set_status(self.t("status.interval_updated", interval=self.config["interval_ms"]), "ready")
 
     def open_github(self):
         webbrowser.open(GITHUB_URL)

@@ -25,11 +25,23 @@ class ConfigStore:
         except Exception:
             return config
         if isinstance(data, dict):
+            if data.get("remember_settings") is False:
+                config["remember_settings"] = False
+                return config
+            if "interval_ms" not in data and "interval" in data:
+                try:
+                    data["interval_ms"] = float(data["interval"]) * 1000
+                    data.setdefault("custom_interval_enabled", True)
+                except (TypeError, ValueError):
+                    pass
             config.update({key: data[key] for key in config.keys() & data.keys()})
         return config
 
     def save(self, config):
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not config.get("remember_settings", True):
+            self.path.write_text(json.dumps({"remember_settings": False}, ensure_ascii=False, indent=2), encoding="utf-8")
+            return
         data = copy.deepcopy(DEFAULT_CONFIG)
         data.update({key: config[key] for key in data.keys() & config.keys()})
         self.path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
