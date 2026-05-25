@@ -1,4 +1,9 @@
+import sys
+import tkinter as tk
+from pathlib import Path
+
 import customtkinter as ctk
+from PIL import Image
 
 from .constants import APP_NAME, APP_VERSION
 
@@ -14,12 +19,28 @@ MUTED = "#8f98a6"
 TRANSPARENT_KEY = "#010203"
 
 
+def resource_path(relative_path):
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / relative_path
+
+
+def widget_exists(widget):
+    try:
+        return widget is not None and bool(widget.winfo_exists())
+    except Exception:
+        return False
+
+
 class Tooltip:
     def __init__(self, widget, text):
         self.widget = widget
         self.text = text
         self.tip = None
         self.after_id = None
+        try:
+            self.parent = widget._root()
+        except Exception:
+            self.parent = None
         widget.bind("<Enter>", self.schedule, add="+")
         widget.bind("<Leave>", self.hide, add="+")
         widget.bind("<ButtonPress>", self.hide, add="+")
@@ -29,38 +50,58 @@ class Tooltip:
 
     def schedule(self, _event=None):
         self.hide()
-        self.after_id = self.widget.after(350, self.show)
+        if not widget_exists(self.widget) or not widget_exists(self.parent):
+            return
+        try:
+            self.after_id = self.parent.after(350, self.show)
+        except Exception:
+            self.after_id = None
 
     def show(self):
-        if self.tip or not self.widget.winfo_exists():
+        self.after_id = None
+        if widget_exists(self.tip) or not widget_exists(self.widget) or not widget_exists(self.parent):
             return
-        x = self.widget.winfo_rootx()
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
-        self.tip = ctk.CTkToplevel(self.widget)
-        self.tip.overrideredirect(True)
-        self.tip.attributes("-topmost", True)
-        self.tip.configure(fg_color=TRANSPARENT_KEY)
         try:
-            self.tip.wm_attributes("-transparentcolor", TRANSPARENT_KEY)
+            owner = self.widget.winfo_toplevel()
+            if not widget_exists(owner):
+                return
+            x = self.widget.winfo_rootx()
+            y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+            self.tip = ctk.CTkToplevel(self.parent)
+            self.tip.overrideredirect(True)
+            self.tip.attributes("-topmost", True)
+            self.tip.configure(fg_color=TRANSPARENT_KEY)
+            try:
+                self.tip.wm_attributes("-transparentcolor", TRANSPARENT_KEY)
+            except tk.TclError:
+                self.tip.configure(fg_color="#252b34")
+            self.tip.geometry(f"+{x}+{y}")
+            ctk.CTkLabel(
+                self.tip,
+                text=self.text,
+                fg_color="#252b34",
+                text_color="#dce3ec",
+                corner_radius=5,
+                font=("Segoe UI", 10),
+            ).pack(padx=1, pady=1, ipadx=7, ipady=3)
         except Exception:
-            self.tip.configure(fg_color="#252b34")
-        self.tip.geometry(f"+{x}+{y}")
-        ctk.CTkLabel(
-            self.tip,
-            text=self.text,
-            fg_color="#252b34",
-            text_color="#dce3ec",
-            corner_radius=5,
-            font=("Segoe UI", 10),
-        ).pack(padx=1, pady=1, ipadx=7, ipady=3)
+            self.hide()
 
     def hide(self, _event=None):
-        if self.after_id:
-            self.widget.after_cancel(self.after_id)
+        if self.after_id is not None:
+            try:
+                if widget_exists(self.parent):
+                    self.parent.after_cancel(self.after_id)
+            except Exception:
+                pass
             self.after_id = None
-        if self.tip:
-            self.tip.destroy()
-            self.tip = None
+        tip = self.tip
+        self.tip = None
+        try:
+            if widget_exists(tip):
+                tip.destroy()
+        except Exception:
+            pass
 
 
 class CVInputUI(ctk.CTk):
@@ -70,8 +111,7 @@ class CVInputUI(ctk.CTk):
     SLOT_FRAME_HEIGHT = 392
     SLOT_TEXTBOX_HEIGHT = 30
     SETTINGS_SIZE = (344, 486)
-    ABOUT_SIZE = (372, 338)
-    HELP_SIZE = (372, 360)
+    ABOUT_SIZE = (430, 620)
 
     def __init__(self, controller, config):
         super().__init__()
@@ -79,7 +119,6 @@ class CVInputUI(ctk.CTk):
         self.config = config
         self.settings_window = None
         self.about_window = None
-        self.help_window = None
         self.tooltips = {}
         self.drag_x = 0
         self.drag_y = 0
@@ -93,6 +132,8 @@ class CVInputUI(ctk.CTk):
         self.outside_click_binding = None
         self.is_multi_slot_visible = False
         self.interval_row = None
+        self.settings_icon = self.load_icon("set.png")
+        self.about_icon = self.load_icon("about.png")
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -126,18 +167,28 @@ class CVInputUI(ctk.CTk):
         self.titlebar = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=48)
         self.titlebar.pack(fill="x", padx=8, pady=(5, 2))
         self.titlebar.pack_propagate(False)
-        self.titlebar.grid_columnconfigure(0, weight=0, minsize=104)
+        self.titlebar.grid_columnconfigure(0, weight=0, minsize=76)
         self.titlebar.grid_columnconfigure(1, weight=1)
         self.titlebar.grid_columnconfigure(2, weight=0, minsize=104)
 
         self.left_tools = ctk.CTkFrame(self.titlebar, fg_color="transparent")
         self.left_tools.grid(row=0, column=0, sticky="w")
-        self.settings_button = self.icon_button(self.left_tools, "⚙", self.open_settings, "tooltip.settings")
+        self.settings_button = self.icon_button(
+            self.left_tools,
+            "" if self.settings_icon else "⚙",
+            self.open_settings,
+            "tooltip.settings",
+            image=self.settings_icon,
+        )
         self.settings_button.pack(side="left")
-        self.about_button = self.icon_button(self.left_tools, "ⓘ", self.open_about, "tooltip.about")
+        self.about_button = self.icon_button(
+            self.left_tools,
+            "" if self.about_icon else "ⓘ",
+            self.open_about,
+            "tooltip.about",
+            image=self.about_icon,
+        )
         self.about_button.pack(side="left", padx=(2, 0))
-        self.help_button = self.icon_button(self.left_tools, "❓", self.open_help, "tooltip.help", font=("Segoe UI Emoji", 13))
-        self.help_button.pack(side="left", padx=(2, 0))
 
         self.title_group = ctk.CTkFrame(self.titlebar, fg_color="transparent")
         self.title_group.grid(row=0, column=1, sticky="nsew")
@@ -213,7 +264,7 @@ class CVInputUI(ctk.CTk):
             progress_color="#6fb49d",
         )
         self.progress_bar.set(0)
-        self.progress_bar.pack(side="left", padx=(8, 0), pady=(12, 0))
+        self.progress_bar.pack(side="left", padx=(8, 0), pady=(10, 0))
         self.progress_percent_label = ctk.CTkLabel(
             self.action_frame,
             text="",
@@ -222,7 +273,7 @@ class CVInputUI(ctk.CTk):
             font=("Segoe UI", 9),
             text_color=MUTED,
         )
-        self.progress_percent_label.pack(side="left", padx=(5, 0), pady=(5, 0))
+        self.progress_percent_label.pack(side="left", padx=(5, 0), pady=(3, 0))
 
         self.hotkeys_switch = ctk.CTkSwitch(
             self.action_frame,
@@ -264,10 +315,19 @@ class CVInputUI(ctk.CTk):
         )
         self.status_label.pack(fill="x", padx=12, pady=(0, 8))
 
-    def icon_button(self, parent, text, command, tooltip_key, text_color="#c7d0dc", font=("Segoe UI Symbol", 13)):
+    def load_icon(self, filename):
+        path = resource_path(Path("assets") / filename)
+        try:
+            image = Image.open(path)
+        except (FileNotFoundError, OSError):
+            return None
+        return ctk.CTkImage(light_image=image, dark_image=image, size=(16, 16))
+
+    def icon_button(self, parent, text, command, tooltip_key, text_color="#c7d0dc", font=("Segoe UI Symbol", 13), image=None):
         button = ctk.CTkButton(
             parent,
             text=text,
+            image=image,
             width=25,
             height=25,
             corner_radius=6,
@@ -281,6 +341,27 @@ class CVInputUI(ctk.CTk):
         self.tooltips[button] = (tooltip_key, Tooltip(button, self.t(tooltip_key)))
         return button
 
+    def prune_tooltips(self):
+        for button, (_key, tooltip) in list(self.tooltips.items()):
+            if not widget_exists(button):
+                tooltip.hide()
+                self.tooltips.pop(button, None)
+
+    def hide_tooltips_for_window(self, win):
+        for button, (_key, tooltip) in list(self.tooltips.items()):
+            if not widget_exists(button) or (self.widget_exists(win) and self.widget_belongs_to_window(button, win)):
+                tooltip.hide()
+                self.tooltips.pop(button, None)
+
+    def focus_window_safely(self, win):
+        if not self.widget_exists(win):
+            return
+        try:
+            win.lift()
+            win.focus_force()
+        except tk.TclError:
+            pass
+
     def refresh_texts(self, rebuild_popups=True):
         self.title_label.configure(text=self.t("app.title"))
         self.subtitle_label.configure(text=self.t("app.subtitle"))
@@ -292,26 +373,21 @@ class CVInputUI(ctk.CTk):
         if rebuild_popups:
             settings_open = self.widget_exists(self.settings_window)
             about_open = self.widget_exists(self.about_window)
-            help_open = self.widget_exists(self.help_window)
             if settings_open:
                 self.close_settings()
                 self.after(10, self.open_settings)
             if about_open:
                 self.close_about()
                 self.after(10, self.open_about)
-            if help_open:
-                self.close_help()
-                self.after(10, self.open_help)
 
     def open_settings(self):
         if self.widget_exists(self.settings_window):
             self.place_settings_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
-            self.settings_window.lift()
-            self.settings_window.focus_force()
+            self.focus_window_safely(self.settings_window)
             return
 
         self.close_about()
-        self.close_help()
+        self.prune_tooltips()
         win = ctk.CTkToplevel(self)
         self.settings_window = win
         self.prepare_popup(win, *self.SETTINGS_SIZE)
@@ -474,29 +550,20 @@ class CVInputUI(ctk.CTk):
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
         self.place_settings_window_near_main(win, *self.SETTINGS_SIZE)
         self.register_child_popup(win, self.close_settings)
-        win.after(20, win.focus_force)
+        self.after(20, lambda target=win: self.focus_window_safely(target))
 
     def open_about(self):
         if self.widget_exists(self.about_window):
             self.center_child_window(self.about_window, self, *self.ABOUT_SIZE)
-            self.about_window.lift()
-            self.about_window.focus_force()
+            self.focus_window_safely(self.about_window)
             return
 
         self.close_settings()
-        self.close_help()
+        self.prune_tooltips()
         win = ctk.CTkToplevel(self)
         self.about_window = win
         self.prepare_popup(win, *self.ABOUT_SIZE)
         frame = self.popup_frame(win)
-        watermark = ctk.CTkLabel(
-            frame,
-            text=self.t("about.watermark"),
-            font=("Microsoft YaHei UI", 30, "bold"),
-            text_color="#252b33",
-        )
-        watermark.place(relx=0.5, rely=0.55, anchor="center")
-
         self.popup_header(
             frame,
             "label.about_with_product",
@@ -505,6 +572,7 @@ class CVInputUI(ctk.CTk):
                 ("G", self.controller.open_github, "tooltip.github"),
                 ("@", self.controller.copy_email, "tooltip.email"),
             ],
+            centered=True,
         )
         body = ctk.CTkFrame(frame, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=16, pady=(0, 10))
@@ -513,53 +581,43 @@ class CVInputUI(ctk.CTk):
         meta.pack(fill="x", pady=(2, 6))
         ctk.CTkLabel(meta, text=f"{self.t('label.author')}: {self.t('about.author')}", font=("Segoe UI", 11), text_color="#c6ced9").pack(side="left")
         ctk.CTkLabel(meta, text=f"v{APP_VERSION}", font=("Segoe UI", 10), text_color=MUTED).pack(side="right")
-        ctk.CTkLabel(
+
+        content_text = (
+            f"{self.t('about.long_description')}\n\n"
+            f"{self.t('about.usage_title')}\n{self.t('help.body')}\n\n"
+            f"{self.t('about.notes_title')}\n{self.t('about.notes')}"
+        )
+        card_width = self.ABOUT_SIZE[0] - 34
+        card_height = self.ABOUT_SIZE[1] - 92
+        text_canvas = tk.Canvas(
             body,
-            text=self.t("about.long_description"),
-            font=("Segoe UI", 10),
-            text_color="#c6ced9",
-            wraplength=self.ABOUT_SIZE[0] - 34,
-            justify="left",
-        ).pack(anchor="w", fill="x")
+            width=card_width,
+            height=card_height,
+            bg="#454a51",
+            bd=0,
+            highlightthickness=0,
+        )
+        text_canvas.pack(fill="both", expand=True, pady=(4, 0))
+        text_canvas.create_text(
+            card_width // 2,
+            card_height // 2,
+            text=self.t("about.watermark"),
+            fill="#596069",
+            font=("Microsoft YaHei UI", 32, "bold"),
+            angle=-24,
+        )
+        text_canvas.create_text(
+            13,
+            13,
+            anchor="nw",
+            text=content_text,
+            width=card_width - 26,
+            fill="#f1f3f6",
+            font=("Microsoft YaHei UI", 9),
+        )
         self.center_child_window(win, self, *self.ABOUT_SIZE)
         self.register_child_popup(win, self.close_about)
-        win.after(20, win.focus_force)
-
-    def open_help(self):
-        if self.widget_exists(self.help_window):
-            self.center_child_window(self.help_window, self, *self.HELP_SIZE)
-            self.help_window.lift()
-            self.help_window.focus_force()
-            return
-
-        self.close_settings()
-        self.close_about()
-        win = ctk.CTkToplevel(self)
-        self.help_window = win
-        self.prepare_popup(win, *self.HELP_SIZE)
-        frame = self.popup_frame(win)
-        self.popup_header(frame, "label.help", self.close_help)
-
-        body = ctk.CTkFrame(frame, fg_color="transparent")
-        body.pack(fill="both", expand=True, padx=16, pady=(0, 14))
-        ctk.CTkLabel(
-            body,
-            text=self.t("help.heading"),
-            font=("Segoe UI", 13, "bold"),
-            text_color=TEXT,
-        ).pack(anchor="w", pady=(2, 8))
-        ctk.CTkLabel(
-            body,
-            text=self.t("help.body"),
-            font=("Segoe UI", 10),
-            text_color="#c6ced9",
-            wraplength=self.HELP_SIZE[0] - 36,
-            justify="left",
-        ).pack(anchor="w", fill="x")
-
-        self.center_child_window(win, self, *self.HELP_SIZE)
-        self.register_child_popup(win, self.close_help)
-        win.after(20, win.focus_force)
+        self.after(20, lambda target=win: self.focus_window_safely(target))
 
     def prepare_popup(self, win, width, height):
         win.overrideredirect(True)
@@ -581,13 +639,16 @@ class CVInputUI(ctk.CTk):
         except Exception:
             win.configure(fg_color=SURFACE)
 
-    def popup_header(self, parent, title_key, close_command, actions=None):
+    def popup_header(self, parent, title_key, close_command, actions=None, centered=False):
         win = parent.winfo_toplevel()
         header = ctk.CTkFrame(parent, fg_color="transparent", height=34)
         header.pack(fill="x", padx=10, pady=(7, 3))
         header.pack_propagate(False)
         title = ctk.CTkLabel(header, text=self.t(title_key), font=("Segoe UI", 13, "bold"), text_color=TEXT)
-        title.pack(side="left")
+        if centered:
+            title.place(relx=0.5, rely=0.5, anchor="center")
+        else:
+            title.pack(side="left")
         close_button = self.icon_button(header, "×", close_command, "tooltip.close")
         close_button.pack(side="right")
         for text, command, tooltip_key in reversed(actions or []):
@@ -601,65 +662,86 @@ class CVInputUI(ctk.CTk):
         self.center_child_window(win, self, width, height)
 
     def place_settings_window_near_main(self, win, width, height):
-        self.update_idletasks()
-        win.update_idletasks()
-        root_x = self.winfo_x()
-        root_y = self.winfo_y()
-        root_w = self.winfo_width()
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
-        gap = 10
-        x = root_x - width - gap
-        if x < 0:
-            x = root_x + root_w + gap
-        if x + width > screen_w:
-            x = max(0, screen_w - width - 8)
-        y = root_y
-        if y < 0:
-            y = 0
-        if y + height > screen_h:
-            y = max(0, screen_h - height - 40)
-        win.geometry(f"{width}x{height}+{x}+{y}")
+        if not self.widget_exists(win):
+            return
+        try:
+            self.update_idletasks()
+            win.update_idletasks()
+            root_x = self.winfo_x()
+            root_y = self.winfo_y()
+            root_w = self.winfo_width()
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight()
+            gap = 10
+            x = root_x - width - gap
+            if x < 0:
+                x = root_x + root_w + gap
+            if x + width > screen_w:
+                x = max(0, screen_w - width - 8)
+            y = root_y
+            if y < 0:
+                y = 0
+            if y + height > screen_h:
+                y = max(0, screen_h - height - 40)
+            win.geometry(f"{width}x{height}+{x}+{y}")
+        except tk.TclError:
+            pass
 
     def position_settings_window(self, win, width, height):
         self.place_settings_window_near_main(win, width, height)
 
     def center_child_window(self, child, parent, width=None, height=None):
-        parent.update_idletasks()
-        child.update_idletasks()
-        child_w = width or child.winfo_width() or child.winfo_reqwidth()
-        child_h = height or child.winfo_height() or child.winfo_reqheight()
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_w = parent.winfo_width()
-        parent_h = parent.winfo_height()
-        screen_w = parent.winfo_screenwidth()
-        screen_h = parent.winfo_screenheight()
-        x = parent_x + (parent_w - child_w) // 2
-        y = parent_y + (parent_h - child_h) // 2
-        if x < 0:
-            x = 0
-        if y < 0:
-            y = 0
-        if x + child_w > screen_w:
-            x = max(0, screen_w - child_w - 8)
-        if y + child_h > screen_h:
-            y = max(0, screen_h - child_h - 40)
-        child.geometry(f"{child_w}x{child_h}+{x}+{y}")
+        if not self.widget_exists(child) or not self.widget_exists(parent):
+            return
+        try:
+            parent.update_idletasks()
+            child.update_idletasks()
+            child_w = width or child.winfo_width() or child.winfo_reqwidth()
+            child_h = height or child.winfo_height() or child.winfo_reqheight()
+            parent_x = parent.winfo_x()
+            parent_y = parent.winfo_y()
+            parent_w = parent.winfo_width()
+            parent_h = parent.winfo_height()
+            screen_w = parent.winfo_screenwidth()
+            screen_h = parent.winfo_screenheight()
+            x = parent_x + (parent_w - child_w) // 2
+            y = parent_y + (parent_h - child_h) // 2
+            if x < 0:
+                x = 0
+            if y < 0:
+                y = 0
+            if x + child_w > screen_w:
+                x = max(0, screen_w - child_w - 8)
+            if y + child_h > screen_h:
+                y = max(0, screen_h - child_h - 40)
+            child.geometry(f"{child_w}x{child_h}+{x}+{y}")
+        except tk.TclError:
+            pass
 
     def register_child_popup(self, win, close_command):
+        if not self.widget_exists(win):
+            return
         self.child_popups = [(popup, closer) for popup, closer in self.child_popups if self.widget_exists(popup)]
         self.child_popups.append((win, close_command))
-        win.bind(
-            "<FocusOut>",
-            lambda _event, popup=win, closer=close_command: self.schedule_child_focus_check(popup, closer),
-            add="+",
-        )
+        try:
+            win.bind(
+                "<FocusOut>",
+                lambda _event, popup=win, closer=close_command: self.schedule_child_focus_check(popup, closer),
+                add="+",
+            )
+        except tk.TclError:
+            return
         if self.config.get("close_popup_on_blur", True) and self.outside_click_binding is None:
-            self.after(80, self.bind_outside_click_close)
+            self.after(80, self.bind_outside_click_close_safely)
 
     def schedule_child_focus_check(self, win, close_command):
-        self.after(80, lambda popup=win, closer=close_command: self.close_child_popup_if_unfocused(popup, closer))
+        if not self.widget_exists(win):
+            self.forget_child_popup(win)
+            return
+        try:
+            self.after(80, lambda popup=win, closer=close_command: self.close_child_popup_if_unfocused(popup, closer))
+        except tk.TclError:
+            pass
 
     def close_child_popup_if_unfocused(self, win, close_command):
         if not self.config.get("close_popup_on_blur", True):
@@ -667,29 +749,47 @@ class CVInputUI(ctk.CTk):
         if not self.widget_exists(win):
             self.forget_child_popup(win)
             return
-        focused = self.focus_get()
+        try:
+            focused = self.focus_get()
+        except tk.TclError:
+            return
         if focused is not None and self.widget_belongs_to_window(focused, win):
             return
-        if self.point_inside_window(self.winfo_pointerx(), self.winfo_pointery(), win):
+        try:
+            pointer_x = self.winfo_pointerx()
+            pointer_y = self.winfo_pointery()
+        except tk.TclError:
+            return
+        if self.point_inside_window(pointer_x, pointer_y, win):
             return
         close_command()
 
     def widget_belongs_to_window(self, widget, win):
-        current = widget
-        while current is not None:
-            if current is win:
-                return True
-            current = getattr(current, "master", None)
+        try:
+            current = widget
+            while current is not None:
+                if current is win:
+                    return True
+                current = getattr(current, "master", None)
+        except tk.TclError:
+            return False
         return False
 
     def bind_outside_click_close(self):
         if self.config.get("close_popup_on_blur", True) and self.outside_click_binding is None and self.child_popups:
-            self.outside_click_binding = self.bind("<ButtonPress-1>", self.close_child_popups_on_outside_click, add="+")
+            try:
+                self.outside_click_binding = self.bind("<ButtonPress-1>", self.close_child_popups_on_outside_click, add="+")
+            except tk.TclError:
+                self.outside_click_binding = None
+
+    def bind_outside_click_close_safely(self):
+        if self.widget_exists(self):
+            self.bind_outside_click_close()
 
     def close_child_popups_on_outside_click(self, event):
         if not self.config.get("close_popup_on_blur", True):
             return
-        if event.widget in (self.settings_button, self.about_button, self.help_button):
+        if event.widget in (self.settings_button, self.about_button):
             return
         for popup, close_command in list(self.child_popups):
             if not self.widget_exists(popup):
@@ -699,40 +799,62 @@ class CVInputUI(ctk.CTk):
                 close_command()
 
     def point_inside_window(self, x, y, win):
-        return (
-            win.winfo_rootx() <= x < win.winfo_rootx() + win.winfo_width()
-            and win.winfo_rooty() <= y < win.winfo_rooty() + win.winfo_height()
-        )
+        if not self.widget_exists(win):
+            return False
+        try:
+            return (
+                win.winfo_rootx() <= x < win.winfo_rootx() + win.winfo_width()
+                and win.winfo_rooty() <= y < win.winfo_rooty() + win.winfo_height()
+            )
+        except tk.TclError:
+            return False
 
     def forget_child_popup(self, win):
         self.child_popups = [(popup, closer) for popup, closer in self.child_popups if popup is not win and self.widget_exists(popup)]
         if not self.child_popups and self.outside_click_binding is not None:
-            self.unbind("<ButtonPress-1>", self.outside_click_binding)
+            try:
+                self.unbind("<ButtonPress-1>", self.outside_click_binding)
+            except tk.TclError:
+                pass
             self.outside_click_binding = None
 
     def close_settings(self):
         win = self.settings_window
-        if self.widget_exists(win):
-            win.destroy()
+        self.settings_window = None
+        self.hide_tooltips_for_window(win)
         if win is not None:
             self.forget_child_popup(win)
-        self.settings_window = None
+        try:
+            if self.widget_exists(win):
+                win.destroy()
+        except tk.TclError:
+            pass
 
     def close_about(self):
         win = self.about_window
-        if self.widget_exists(win):
-            win.destroy()
-        if win is not None:
-            self.forget_child_popup(win)
         self.about_window = None
-
-    def close_help(self):
-        win = self.help_window
-        if self.widget_exists(win):
-            win.destroy()
+        self.hide_tooltips_for_window(win)
         if win is not None:
             self.forget_child_popup(win)
-        self.help_window = None
+        try:
+            if self.widget_exists(win):
+                win.destroy()
+        except tk.TclError:
+            pass
+
+    def dispose_transients(self):
+        self.close_settings()
+        self.close_about()
+        for _button, (_key, tooltip) in list(self.tooltips.items()):
+            tooltip.hide()
+        self.tooltips.clear()
+        self.child_popups.clear()
+        if self.outside_click_binding is not None:
+            try:
+                self.unbind("<ButtonPress-1>", self.outside_click_binding)
+            except tk.TclError:
+                pass
+            self.outside_click_binding = None
 
     def setting_entry(self, parent, value):
         entry = ctk.CTkEntry(
@@ -795,11 +917,21 @@ class CVInputUI(ctk.CTk):
         self.geometry(f"+{event.x_root - self.drag_x}+{event.y_root - self.drag_y}")
 
     def start_popup_drag(self, win, event):
-        self.popup_drag_x = event.x_root - win.winfo_x()
-        self.popup_drag_y = event.y_root - win.winfo_y()
+        if not self.widget_exists(win):
+            return
+        try:
+            self.popup_drag_x = event.x_root - win.winfo_x()
+            self.popup_drag_y = event.y_root - win.winfo_y()
+        except tk.TclError:
+            pass
 
     def drag_popup(self, win, event):
-        win.geometry(f"+{event.x_root - self.popup_drag_x}+{event.y_root - self.popup_drag_y}")
+        if not self.widget_exists(win):
+            return
+        try:
+            win.geometry(f"+{event.x_root - self.popup_drag_x}+{event.y_root - self.popup_drag_y}")
+        except tk.TclError:
+            pass
 
     def minimize_window(self):
         self.overrideredirect(False)
@@ -807,10 +939,24 @@ class CVInputUI(ctk.CTk):
         self.map_binding = self.bind("<Map>", self.restore_borderless, add="+")
 
     def restore_borderless(self, _event=None):
-        self.after(10, lambda: self.overrideredirect(True))
+        try:
+            self.after(10, self.restore_borderless_safely)
+        except tk.TclError:
+            pass
         if self.map_binding:
-            self.unbind("<Map>", self.map_binding)
+            try:
+                self.unbind("<Map>", self.map_binding)
+            except tk.TclError:
+                pass
             self.map_binding = None
+
+    def restore_borderless_safely(self):
+        if not self.widget_exists(self):
+            return
+        try:
+            self.overrideredirect(True)
+        except tk.TclError:
+            pass
 
     def get_text(self):
         return self.text_box.get("1.0", "end-1c")
@@ -967,13 +1113,13 @@ class CVInputUI(ctk.CTk):
     def set_opacity_value(self, value):
         alpha = float(value)
         self.attributes("-alpha", alpha)
-        for win in (self.settings_window, self.about_window, self.help_window):
+        for win in (self.settings_window, self.about_window):
             if self.widget_exists(win):
                 win.attributes("-alpha", alpha)
 
     def set_topmost_value(self, enabled):
         self.attributes("-topmost", bool(enabled))
-        for win in (self.settings_window, self.about_window, self.help_window):
+        for win in (self.settings_window, self.about_window):
             if self.widget_exists(win):
                 win.attributes("-topmost", bool(enabled))
         self.update_pin_button(enabled)
@@ -1044,9 +1190,4 @@ class CVInputUI(ctk.CTk):
         textbox.insert("1.0", text)
 
     def widget_exists(self, widget):
-        if widget is None:
-            return False
-        try:
-            return bool(widget.winfo_exists())
-        except Exception:
-            return False
+        return widget_exists(widget)

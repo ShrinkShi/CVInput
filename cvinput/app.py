@@ -136,7 +136,7 @@ class CVInputApp:
             self.ui.set_status(self.t("status.slot_hotkey_failed", slots=", ".join(slot_failures)), "error")
 
     def on_hotkey(self, action, release_keys):
-        self.ui.after(0, lambda hotkey_action=action, keys=release_keys: self.handle_hotkey(hotkey_action, keys))
+        self.schedule_ui(lambda hotkey_action=action, keys=release_keys: self.handle_hotkey(hotkey_action, keys))
 
     def handle_hotkey(self, action, release_keys):
         if action == "main":
@@ -201,9 +201,8 @@ class CVInputApp:
         should_restore_ime = False
         try:
             should_restore_ime = maybe_toggle_ime_before_typing(self.config)
-            progress_callback = lambda done, total: self.ui.after(
-                0,
-                lambda current=done, count=total: self.ui.set_input_progress(current, count),
+            progress_callback = lambda done, total: self.schedule_ui(
+                lambda current=done, count=total: self.ui.set_input_progress(current, count)
             )
             self.typing_engine.type_text(
                 text,
@@ -214,9 +213,9 @@ class CVInputApp:
                 progress_callback,
             )
             stopped = self.typing_stop_event.is_set()
-            self.ui.after(0, lambda: self.on_typing_done(stopped))
+            self.schedule_ui(lambda: self.on_typing_done(stopped))
         except Exception as e:
-            self.ui.after(0, lambda message=str(e): self.on_typing_error(message))
+            self.schedule_ui(lambda message=str(e): self.on_typing_error(message))
         finally:
             restore_ime_after_typing(should_restore_ime)
 
@@ -234,7 +233,20 @@ class CVInputApp:
         self.ui.set_status(self.t("status.stopping"), "working")
 
     def schedule_clipboard_update(self, text):
-        self.ui.after(0, lambda value=text: self.update_text_from_clipboard(value))
+        self.schedule_ui(lambda value=text: self.update_text_from_clipboard(value))
+
+    def schedule_ui(self, callback):
+        if self.exiting or not self.ui.widget_exists(self.ui):
+            return
+
+        def run_if_alive():
+            if not self.exiting and self.ui.widget_exists(self.ui):
+                callback()
+
+        try:
+            self.ui.after(0, run_if_alive)
+        except Exception:
+            pass
 
     def update_text_from_clipboard(self, text):
         if self.ui.is_text_focused():
@@ -487,13 +499,13 @@ class CVInputApp:
         self.ui.set_status(self.t("status.email_copied"), "ready")
 
     def request_toggle_window(self):
-        self.ui.after(0, self.toggle_window_visibility)
+        self.schedule_ui(self.toggle_window_visibility)
 
     def request_activate_window(self):
-        self.ui.after(0, self.activate_window_from_tray)
+        self.schedule_ui(self.activate_window_from_tray)
 
     def request_exit(self):
-        self.ui.after(0, self.exit_app)
+        self.schedule_ui(self.exit_app)
 
     def toggle_window_visibility(self):
         if self.ui.state() == "withdrawn":
@@ -502,20 +514,35 @@ class CVInputApp:
             self.hide_window()
 
     def show_window(self):
-        self.ui.deiconify()
-        self.ui.after(10, lambda: self.ui.overrideredirect(True))
-        self.ui.lift()
-        self.ui.focus_force()
+        if self.exiting or not self.ui.widget_exists(self.ui):
+            return
+        try:
+            self.ui.deiconify()
+            self.ui.after(10, self.ui.restore_borderless_safely)
+            self.ui.lift()
+            self.ui.focus_force()
+        except Exception:
+            pass
 
     def activate_window_from_tray(self):
+        if self.exiting or not self.ui.widget_exists(self.ui):
+            return
         if self.ui.state() == "withdrawn":
             self.show_window()
             return
-        self.ui.lift()
-        self.ui.focus_force()
+        try:
+            self.ui.lift()
+            self.ui.focus_force()
+        except Exception:
+            pass
 
     def hide_window(self):
-        self.ui.withdraw()
+        if not self.ui.widget_exists(self.ui):
+            return
+        try:
+            self.ui.withdraw()
+        except Exception:
+            pass
 
     def close(self):
         if self.config["close_to_tray"] and not self.exiting:
@@ -535,4 +562,5 @@ class CVInputApp:
         self.toggle_hotkey_manager.stop()
         self.tray_manager.stop()
         self.save_config()
+        self.ui.dispose_transients()
         self.ui.destroy()
