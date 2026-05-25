@@ -11,6 +11,7 @@ HOVER = "#29303a"
 ACCENT = "#426d64"
 TEXT = "#e8edf4"
 MUTED = "#8f98a6"
+TRANSPARENT_KEY = "#010203"
 
 
 class Tooltip:
@@ -38,7 +39,11 @@ class Tooltip:
         self.tip = ctk.CTkToplevel(self.widget)
         self.tip.overrideredirect(True)
         self.tip.attributes("-topmost", True)
-        self.tip.configure(fg_color="#252b34")
+        self.tip.configure(fg_color=TRANSPARENT_KEY)
+        try:
+            self.tip.wm_attributes("-transparentcolor", TRANSPARENT_KEY)
+        except Exception:
+            self.tip.configure(fg_color="#252b34")
         self.tip.geometry(f"+{x}+{y}")
         ctk.CTkLabel(
             self.tip,
@@ -47,7 +52,7 @@ class Tooltip:
             text_color="#dce3ec",
             corner_radius=5,
             font=("Segoe UI", 10),
-        ).pack(ipadx=7, ipady=3)
+        ).pack(padx=1, pady=1, ipadx=7, ipady=3)
 
     def hide(self, _event=None):
         if self.after_id:
@@ -61,7 +66,7 @@ class Tooltip:
 class CVInputUI(ctk.CTk):
     WIDTH = 360
     HEIGHT = 210
-    SETTINGS_SIZE = (334, 392)
+    SETTINGS_SIZE = (344, 454)
     ABOUT_SIZE = (314, 226)
 
     def __init__(self, controller, config):
@@ -88,9 +93,10 @@ class CVInputUI(ctk.CTk):
         self.attributes("-topmost", bool(config["always_on_top"]))
         self.attributes("-alpha", float(config["opacity"]))
         self.protocol("WM_DELETE_WINDOW", controller.close)
-        self.configure(fg_color=SURFACE)
+        self.apply_transparent_background(self)
 
         self.build_main_ui()
+        self.set_multi_slot_visible(bool(self.config["multi_slot_enabled"]))
         self.refresh_texts(rebuild_popups=False)
 
     def t(self, key, **kwargs):
@@ -104,7 +110,7 @@ class CVInputUI(ctk.CTk):
             border_width=1,
             border_color=BORDER,
         )
-        self.main_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        self.main_frame.pack(fill="both", expand=True, padx=1, pady=1)
 
         self.titlebar = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=48)
         self.titlebar.pack(fill="x", padx=8, pady=(5, 2))
@@ -154,6 +160,40 @@ class CVInputUI(ctk.CTk):
             wrap="word",
         )
         self.text_box.pack(fill="x")
+        self.text_box.bind("<KeyRelease>", lambda _event: self.controller.on_main_text_changed(), add="+")
+        self.text_box.bind("<FocusOut>", lambda _event: self.controller.on_main_text_changed(), add="+")
+
+        self.multi_slot_frame = ctk.CTkScrollableFrame(
+            self.main_frame,
+            fg_color=PANEL,
+            corner_radius=9,
+            border_width=1,
+            border_color=BORDER,
+            height=168,
+        )
+        self.slot_entries = []
+        for index, label in enumerate([self.t(f"label.slot_{slot}") for slot in (1, 2, 3, 4, 5, 6, 7, 8, 9, 0)]):
+            row = ctk.CTkFrame(self.multi_slot_frame, fg_color="transparent")
+            row.pack(fill="x", pady=2)
+            ctk.CTkLabel(row, text=label, width=46, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+            entry = ctk.CTkTextbox(
+                row,
+                height=42,
+                corner_radius=6,
+                border_width=1,
+                border_color="#303743",
+                fg_color=SURFACE_DARK,
+                text_color=TEXT,
+                font=("Segoe UI", 10),
+                wrap="word",
+            )
+            entry.insert("1.0", self.config["multi_slots"][index] if index < len(self.config["multi_slots"]) else "")
+            entry.pack(side="left", fill="x", expand=True)
+            entry.bind("<KeyRelease>", lambda _event, slot_index=index, slot_entry=entry: self.controller.update_multi_slot(slot_index, slot_entry.get("1.0", "end-1c")), add="+")
+            entry.bind("<FocusOut>", lambda _event, slot_index=index, slot_entry=entry: self.controller.update_multi_slot(slot_index, slot_entry.get("1.0", "end-1c")), add="+")
+            self.slot_entries.append(entry)
+        if self.config["multi_slot_enabled"]:
+            self.multi_slot_frame.pack(fill="x", padx=12, pady=(0, 6))
 
         self.action_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=29)
         self.action_frame.pack(fill="x", padx=12, pady=(0, 4))
@@ -262,6 +302,30 @@ class CVInputUI(ctk.CTk):
             self.config["clear_after_input"],
             lambda: self.controller.set_clear_after_input(bool(self.clear_switch.get())),
         )
+        self.disable_empty_switch = self.setting_switch(
+            content,
+            "label.disable_hotkey_when_clipboard_empty",
+            self.config["disable_hotkey_when_clipboard_empty"],
+            lambda: self.controller.set_disable_hotkey_when_clipboard_empty(bool(self.disable_empty_switch.get())),
+        )
+        self.ime_switch = self.setting_switch(
+            content,
+            "label.toggle_ime_with_shift",
+            self.config["toggle_ime_with_shift"],
+            lambda: self.controller.set_toggle_ime_with_shift(bool(self.ime_switch.get())),
+        )
+        self.newline_switch = self.setting_switch(
+            content,
+            "label.newline_with_shift_enter",
+            self.config["newline_with_shift_enter"],
+            lambda: self.controller.set_newline_with_shift_enter(bool(self.newline_switch.get())),
+        )
+        self.multi_slot_switch = self.setting_switch(
+            content,
+            "label.multi_slot_enabled",
+            self.config["multi_slot_enabled"],
+            lambda: self.controller.set_multi_slot_enabled(bool(self.multi_slot_switch.get())),
+        )
         self.close_to_tray_switch = self.setting_switch(
             content,
             "label.close_to_tray",
@@ -312,6 +376,18 @@ class CVInputUI(ctk.CTk):
         self.language_menu.set(current_label)
         self.language_menu.pack(side="left", fill="x", expand=True)
 
+        ctk.CTkButton(
+            content,
+            text=self.t("label.restore_defaults"),
+            height=26,
+            corner_radius=7,
+            fg_color="#242a33",
+            hover_color=HOVER,
+            text_color=TEXT,
+            font=("Segoe UI", 10),
+            command=self.controller.restore_default_settings,
+        ).pack(anchor="w", pady=(9, 4))
+
         self.settings_status = ctk.CTkLabel(frame, text="", anchor="w", font=("Segoe UI", 10), text_color=MUTED, height=18)
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
         self.position_popup(win, *self.SETTINGS_SIZE)
@@ -349,9 +425,9 @@ class CVInputUI(ctk.CTk):
 
         actions = ctk.CTkFrame(body, fg_color="transparent")
         actions.pack(fill="x")
-        github_button = self.icon_button(actions, "⌁", self.controller.open_github, "tooltip.github")
+        github_button = self.icon_button(actions, "G", self.controller.open_github, "tooltip.github")
         github_button.pack(side="left")
-        email_button = self.icon_button(actions, "✉", self.controller.copy_email, "tooltip.email")
+        email_button = self.icon_button(actions, "@", self.controller.copy_email, "tooltip.email")
         email_button.pack(side="left", padx=(4, 0))
         self.position_popup(win, *self.ABOUT_SIZE)
 
@@ -360,13 +436,20 @@ class CVInputUI(ctk.CTk):
         win.resizable(False, False)
         win.attributes("-topmost", bool(self.config["always_on_top"]))
         win.attributes("-alpha", float(self.config["opacity"]))
-        win.configure(fg_color=SURFACE)
+        self.apply_transparent_background(win)
         win.geometry(f"{width}x{height}")
 
     def popup_frame(self, win):
         frame = ctk.CTkFrame(win, fg_color=SURFACE, corner_radius=12, border_width=1, border_color=BORDER)
-        frame.pack(fill="both", expand=True)
+        frame.pack(fill="both", expand=True, padx=1, pady=1)
         return frame
+
+    def apply_transparent_background(self, win):
+        win.configure(fg_color=TRANSPARENT_KEY)
+        try:
+            win.wm_attributes("-transparentcolor", TRANSPARENT_KEY)
+        except Exception:
+            win.configure(fg_color=SURFACE)
 
     def popup_header(self, parent, title_key, close_command):
         win = parent.winfo_toplevel()
@@ -515,6 +598,32 @@ class CVInputUI(ctk.CTk):
             if self.widget_exists(getattr(self, "clipboard_switch", None)):
                 self.clipboard_switch.deselect()
 
+    def set_disable_empty_switch(self, enabled):
+        if self.widget_exists(getattr(self, "disable_empty_switch", None)):
+            self.disable_empty_switch.select() if enabled else self.disable_empty_switch.deselect()
+
+    def set_ime_switch(self, enabled):
+        if self.widget_exists(getattr(self, "ime_switch", None)):
+            self.ime_switch.select() if enabled else self.ime_switch.deselect()
+
+    def set_newline_switch(self, enabled):
+        if self.widget_exists(getattr(self, "newline_switch", None)):
+            self.newline_switch.select() if enabled else self.newline_switch.deselect()
+
+    def set_multi_slot_switch(self, enabled):
+        if self.widget_exists(getattr(self, "multi_slot_switch", None)):
+            self.multi_slot_switch.select() if enabled else self.multi_slot_switch.deselect()
+
+    def set_multi_slot_visible(self, enabled):
+        self.set_multi_slot_switch(enabled)
+        if enabled:
+            if not self.multi_slot_frame.winfo_manager():
+                self.multi_slot_frame.pack(fill="x", padx=12, pady=(0, 6), before=self.action_frame)
+            self.geometry(f"{self.WIDTH}x400")
+        else:
+            self.multi_slot_frame.pack_forget()
+            self.geometry(f"{self.WIDTH}x{self.HEIGHT}")
+
     def set_startup_switch(self, enabled):
         if self.widget_exists(getattr(self, "startup_switch", None)):
             self.startup_switch.select() if enabled else self.startup_switch.deselect()
@@ -542,6 +651,38 @@ class CVInputUI(ctk.CTk):
 
     def show_warning(self, _title, message):
         self.set_status(message, "error")
+
+    def sync_config_controls(self):
+        self.set_clipboard_switch(bool(self.config["auto_clipboard"]))
+        self.set_disable_empty_switch(bool(self.config["disable_hotkey_when_clipboard_empty"]))
+        self.set_ime_switch(bool(self.config["toggle_ime_with_shift"]))
+        self.set_newline_switch(bool(self.config["newline_with_shift_enter"]))
+        self.set_multi_slot_visible(bool(self.config["multi_slot_enabled"]))
+        self.set_close_to_tray_switch(bool(self.config["close_to_tray"]))
+        self.set_startup_switch(bool(self.config["startup_on_boot"]))
+        self.set_topmost_value(bool(self.config["always_on_top"]))
+        self.set_opacity_value(float(self.config["opacity"]))
+        if self.widget_exists(getattr(self, "clear_switch", None)):
+            self.clear_switch.select() if self.config["clear_after_input"] else self.clear_switch.deselect()
+        if self.widget_exists(getattr(self, "hotkey_entry", None)):
+            self.replace_entry_text(self.hotkey_entry, str(self.config["hotkey"]))
+        if self.widget_exists(getattr(self, "interval_entry", None)):
+            self.replace_entry_text(self.interval_entry, str(self.config["interval"]))
+        if self.widget_exists(getattr(self, "opacity_slider", None)):
+            self.opacity_slider.set(float(self.config["opacity"]))
+        if self.widget_exists(getattr(self, "language_menu", None)):
+            self.language_menu.set(self.t(f"label.language.{self.config['language']}"))
+        for index, entry in enumerate(getattr(self, "slot_entries", [])):
+            text = self.config["multi_slots"][index] if index < len(self.config["multi_slots"]) else ""
+            self.replace_textbox_text(entry, text)
+
+    def replace_entry_text(self, entry, text):
+        entry.delete(0, "end")
+        entry.insert(0, text)
+
+    def replace_textbox_text(self, textbox, text):
+        textbox.delete("1.0", "end")
+        textbox.insert("1.0", text)
 
     def widget_exists(self, widget):
         if widget is None:

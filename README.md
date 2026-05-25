@@ -9,8 +9,9 @@ CVInput 是一个 Windows 桌面小工具，用于把剪贴板文本转换为逐
 - 使用 Windows 原生 `RegisterHotKey` + `GetMessageW` 监听全局快捷键。
 - 使用 `pyperclip` 后台轮询剪贴板。
 - 使用 `pynput.keyboard.Controller` 逐字符模拟输入，支持中文、英文和常见符号。
-- 支持系统托盘、关闭时最小化到托盘、托盘显示/隐藏窗口和托盘退出。
-- 支持开机自启、窗口置顶、透明度、输入后清空和中英文语言切换。
+- 支持系统托盘、关闭时最小化到托盘、托盘单击显示窗口和托盘退出。
+- 支持开机自启、窗口置顶、透明度、输入后清空、中英文语言切换和恢复默认设置。
+- 支持空剪贴板快捷键释放保护、中文输入法切换保护、换行安全输入和 10 个 Alt+数字多槽位输入。
 
 ## 安装依赖
 
@@ -38,21 +39,13 @@ python -m PyInstaller --onefile --windowed --name CVInput --icon assets/icon.ico
 
 打包产物会生成到 `dist/`，构建缓存会生成到 `build/`。这些目录不应提交到仓库。
 
-## 默认快捷键
+## 快捷键
 
-默认快捷键是：
+默认快捷键是 `Ctrl+V`。当 CVInput 成功注册该快捷键时，按下 `Ctrl+V` 会触发逐字符模拟输入。输入前程序会释放触发快捷键的按键，避免 `Ctrl`、`Alt` 等修饰键残留影响后续输入。
 
-```text
-Ctrl+V
-```
+点击标题栏左侧的设置图标，打开相对主窗口居中的设置弹窗。在“快捷键”输入框里填写新的快捷键，然后点击输入框右侧的应用图标。
 
-当 CVInput 成功注册 `Ctrl+V` 时，按下 `Ctrl+V` 不再执行目标程序自己的粘贴动作，而是触发 CVInput 的逐字符模拟输入。输入前程序会释放触发快捷键的按键，避免 `Ctrl`、`Alt` 等修饰键残留影响后续输入。
-
-## 如何修改快捷键
-
-点击标题栏左侧的设置图标，打开相对主窗口定位的设置弹窗。在“快捷键”输入框里填写新的快捷键，然后点击输入框右侧的应用图标。
-
-支持的示例：
+支持示例：
 
 ```text
 Ctrl+V
@@ -63,18 +56,46 @@ Shift+F8
 Ctrl+Shift+Enter
 ```
 
-支持的修饰键：
+支持的修饰键包括 `Ctrl / Control`、`Alt`、`Shift`、`Win / Windows / Meta`。支持的主键包括 `A-Z`、`0-9`、`F1-F24`、`Enter`、`Tab`、`Space`、`Esc`、`Home`、`End`、`PageUp`、`PageDown`、`Delete`、`Backspace` 和方向键。
 
-- `Ctrl` / `Control`
-- `Alt`
-- `Shift`
-- `Win` / `Windows` / `Meta`
+## 空剪贴板保护
 
-支持的主键包括 `A-Z`、`0-9`、`F1-F24`、`Enter`、`Tab`、`Space`、`Esc`、`Home`、`End`、`PageUp`、`PageDown`、`Delete`、`Backspace` 和方向键。
+设置项“剪贴板无文本时不接管快捷键”默认开启。开启后，如果主文本框为空或只有空白字符，程序会注销主快捷键，让 `Ctrl+V` 或自定义主快捷键回归目标软件的原生处理；主文本再次出现有效内容时会自动重新注册快捷键。
+
+该保护只影响主快捷键，不影响主界面的输入图标，也不影响多槽位 Alt+数字输入。
+
+## 中文输入法切换保护
+
+设置项“输入前后切换英文输入状态”默认开启。程序会在输入前尽力检测当前前台窗口输入法状态；如果检测到中文输入状态，会通过 Windows 键盘事件模拟一次真实 `Shift` 切换到英文输入状态，输入结束后再模拟一次 `Shift` 尽量恢复。输入被停止或出现异常时，恢复逻辑仍会在清理阶段执行。
+
+Known Issues：Windows 输入法状态检测依赖当前前台窗口和输入法实现，属于尽力检测。部分现代输入法的中英文状态不能被传统 IME API 完整识别；检测失败时程序不会崩溃，也不会无条件按 `Shift`。
+
+## 换行输入
+
+设置项“换行使用 Shift+Enter”默认开启。启用时，主文本和多槽位文本中的换行会以 `Shift+Enter` 模拟输入，适合 Enter 会直接发送内容的聊天窗口；关闭后，换行会按普通 `Enter` 输入。
+
+## 多槽位输入
+
+开启设置项“多条复制内容手动输入”后，主窗口会显示包含 10 个紧凑多行文本框的滚动区域：
+
+```text
+Alt+1
+Alt+2
+Alt+3
+Alt+4
+Alt+5
+Alt+6
+Alt+7
+Alt+8
+Alt+9
+Alt+0
+```
+
+按对应热键会用同一套 `TypingEngine` 输入对应槽位内容。槽位内容会持久化保存。多槽位热键注册失败不会影响主快捷键。
 
 ## 托盘与关闭行为
 
-程序运行时会创建系统托盘图标，托盘菜单包含：
+程序运行时会创建系统托盘图标。单击托盘图标会显示并置前主窗口；右键菜单包含：
 
 - 显示/隐藏窗口
 - 退出
@@ -104,6 +125,10 @@ cvinput/locales/en_us.json
 
 缺失语言 key 时会回退到中文默认值或 key 本身，不会导致程序崩溃。
 
+## 恢复默认设置
+
+设置弹窗中提供“恢复默认设置”按钮，会恢复快捷键、输入间隔、自动监听剪贴板、输入后清空、关闭到托盘、开机自启、透明度、语言、置顶状态、空剪贴板保护、输入法切换保护、换行输入策略和多槽位设置。
+
 ## 快捷键注册失败怎么办
 
 Windows 全局快捷键同一时间只能被一个程序注册。如果 `Ctrl+V` 或你设置的其他快捷键已经被系统、输入法、远程桌面软件、安全软件或其他程序占用，CVInput 就无法注册该快捷键。
@@ -128,6 +153,7 @@ CVInput/
 │  ├─ hotkey.py
 │  ├─ clipboard.py
 │  ├─ typing_engine.py
+│  ├─ ime.py
 │  ├─ config.py
 │  ├─ constants.py
 │  ├─ i18n.py
@@ -147,9 +173,10 @@ CVInput/
 - `main.py`：程序入口，只创建并启动 `CVInputApp`。
 - `cvinput/app.py`：组合 UI、快捷键、剪贴板、输入引擎、托盘和配置，负责生命周期。
 - `cvinput/ui_ctk.py`：customtkinter 无边框主界面、设置弹窗和关于弹窗。
-- `cvinput/hotkey.py`：Windows `RegisterHotKey` 全局快捷键监听。
+- `cvinput/hotkey.py`：Windows `RegisterHotKey` 多热键监听。
 - `cvinput/clipboard.py`：`pyperclip` 剪贴板轮询。
 - `cvinput/typing_engine.py`：`pynput` 逐字符模拟输入。
+- `cvinput/ime.py`：Windows 输入法状态尽力检测与 Shift 切换保护。
 - `cvinput/config.py`：JSON 配置读写。
 - `cvinput/i18n.py`：语言文件加载与 fallback。
 - `cvinput/tray.py`：系统托盘图标与菜单。

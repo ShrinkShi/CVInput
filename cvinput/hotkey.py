@@ -33,6 +33,8 @@ kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 
 
 class HotkeyManager:
+    MAIN_ACTION = "main"
+
     MODIFIER_ALIASES = {
         "ctrl": MOD_CONTROL,
         "control": MOD_CONTROL,
@@ -62,13 +64,15 @@ class HotkeyManager:
         "right": 0x27,
     }
 
-    def __init__(self):
+    def __init__(self, base_id=HOTKEY_ID):
+        self.base_id = base_id
         self.thread = None
         self.thread_id = None
         self.stop_event = threading.Event()
         self.callback = None
         self.current_hotkey = None
         self.release_keys = []
+        self.current_hotkeys = {}
         self._registered = False
 
     def parse_hotkey(self, text):
@@ -100,29 +104,53 @@ class HotkeyManager:
         return modifiers, main_key, release_keys
 
     def start(self, hotkey_config, callback):
+        registered, failures = self.start_all({self.MAIN_ACTION: hotkey_config}, lambda _action, release_keys: callback(release_keys))
+        if self.MAIN_ACTION in registered:
+            return True, "快捷键注册成功"
+        return False, failures.get(self.MAIN_ACTION, "快捷键注册失败")
+
+    def start_all(self, hotkey_configs, callback):
         self.stop()
-        try:
-            modifiers, vk_code, release_keys = self.parse_hotkey(hotkey_config)
-        except ValueError as e:
-            return False, str(e)
+        parsed_hotkeys = []
+        failures = {}
+        for index, (action, hotkey_config) in enumerate(hotkey_configs.items()):
+            try:
+                modifiers, vk_code, release_keys = self.parse_hotkey(hotkey_config)
+            except ValueError as e:
+                failures[action] = str(e)
+                continue
+            parsed_hotkeys.append(
+                {
+                    "id": self.base_id + index,
+                    "action": action,
+                    "hotkey": hotkey_config,
+                    "modifiers": modifiers,
+                    "vk_code": vk_code,
+                    "release_keys": release_keys,
+                }
+            )
+
+        if not parsed_hotkeys:
+            return {}, failures
 
         self.stop_event.clear()
         self.callback = callback
-        self.current_hotkey = hotkey_config
-        self.release_keys = release_keys
+        self.current_hotkeys = dict(hotkey_configs)
+        self.current_hotkey = hotkey_configs.get(self.MAIN_ACTION)
         result_queue = queue.Queue(maxsize=1)
         self.thread = threading.Thread(
             target=self.hotkey_listener_loop,
-            args=(modifiers, vk_code, result_queue),
+            args=(parsed_hotkeys, result_queue),
             daemon=True,
         )
         self.thread.start()
 
         try:
-            ok, message = result_queue.get(timeout=1.5)
+            registered, runtime_failures = result_queue.get(timeout=1.5)
         except queue.Empty:
-            return False, "快捷键注册超时"
-        return ok, message
+            return {}, {**failures, "_global": "快捷键注册超时"}
+        failures.update(runtime_failures)
+        return registered, failures
 
     def stop(self):
         self.stop_event.set()
@@ -133,26 +161,38 @@ class HotkeyManager:
         self.thread_id = None
         self._registered = False
 
-    def hotkey_listener_loop(self, modifiers, vk_code, result_queue):
+    def hotkey_listener_loop(self, parsed_hotkeys, result_queue):
         self.thread_id = kernel32.GetCurrentThreadId()
-        ok = bool(user32.RegisterHotKey(None, HOTKEY_ID, modifiers, vk_code))
-        self._registered = ok
-        if not ok:
-            err_code = ctypes.get_last_error()
-            result_queue.put((False, f"快捷键被占用或注册失败（错误 {err_code}）"))
+        registered_by_id = {}
+        registered_by_action = {}
+        failures = {}
+
+        for item in parsed_hotkeys:
+            ok = bool(user32.RegisterHotKey(None, item["id"], item["modifiers"], item["vk_code"]))
+            if not ok:
+                err_code = ctypes.get_last_error()
+                failures[item["action"]] = f"快捷键被占用或注册失败（错误 {err_code}）"
+                continue
+            registered_by_id[item["id"]] = item
+            registered_by_action[item["action"]] = item["hotkey"]
+
+        self._registered = bool(registered_by_id)
+        result_queue.put((registered_by_action, failures))
+        if not registered_by_id:
             return
 
-        result_queue.put((True, "快捷键注册成功"))
         msg = wintypes.MSG()
         try:
             while not self.stop_event.is_set():
                 ret = user32.GetMessageW(ctypes.byref(msg), None, 0, 0)
                 if ret == 0 or msg.message == WM_QUIT:
                     break
-                if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID and self.callback:
-                    self.callback(list(self.release_keys))
+                if msg.message == WM_HOTKEY and msg.wParam in registered_by_id and self.callback:
+                    item = registered_by_id[msg.wParam]
+                    self.callback(item["action"], list(item["release_keys"]))
         finally:
-            user32.UnregisterHotKey(None, HOTKEY_ID)
+            for hotkey_id in registered_by_id:
+                user32.UnregisterHotKey(None, hotkey_id)
             self._registered = False
 
     def _parse_main_key(self, token):

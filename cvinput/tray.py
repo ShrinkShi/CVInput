@@ -7,9 +7,10 @@ from PIL import Image, ImageDraw
 
 
 class TrayManager:
-    def __init__(self, app_name, labels, on_toggle_window, on_exit):
+    def __init__(self, app_name, labels, on_activate_window, on_toggle_window, on_exit):
         self.app_name = app_name
         self.labels = labels
+        self.on_activate_window = on_activate_window
         self.on_toggle_window = on_toggle_window
         self.on_exit = on_exit
         self.icon = None
@@ -38,9 +39,13 @@ class TrayManager:
 
     def build_menu(self):
         return pystray.Menu(
+            pystray.MenuItem(self.app_name, self._activate_window, default=True, visible=False),
             pystray.MenuItem(self.labels("tray.show_hide"), self._toggle_window),
             pystray.MenuItem(self.labels("tray.exit"), self._exit),
         )
+
+    def _activate_window(self, _icon, _item):
+        self.on_activate_window()
 
     def _toggle_window(self, _icon, _item):
         self.on_toggle_window()

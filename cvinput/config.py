@@ -1,5 +1,6 @@
 import json
 import os
+import copy
 from pathlib import Path
 
 from .constants import DEFAULT_CONFIG
@@ -16,7 +17,7 @@ class ConfigStore:
         return Path.home() / ".cvinput" / "config.json"
 
     def load(self):
-        config = dict(DEFAULT_CONFIG)
+        config = copy.deepcopy(DEFAULT_CONFIG)
         if not self.path.exists():
             return config
         try:
@@ -29,6 +30,6 @@ class ConfigStore:
 
     def save(self, config):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        data = dict(DEFAULT_CONFIG)
+        data = copy.deepcopy(DEFAULT_CONFIG)
         data.update({key: config[key] for key in data.keys() & config.keys()})
         self.path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
