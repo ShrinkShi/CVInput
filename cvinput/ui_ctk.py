@@ -3,213 +3,464 @@ import customtkinter as ctk
 from .constants import APP_NAME, APP_VERSION
 
 
+SURFACE = "#1b1f25"
+SURFACE_DARK = "#14171c"
+PANEL = "#171a20"
+BORDER = "#2a3038"
+HOVER = "#29303a"
+ACCENT = "#426d64"
+TEXT = "#e8edf4"
+MUTED = "#8f98a6"
+
+
+class Tooltip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        self.after_id = None
+        widget.bind("<Enter>", self.schedule, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
+        widget.bind("<ButtonPress>", self.hide, add="+")
+
+    def set_text(self, text):
+        self.text = text
+
+    def schedule(self, _event=None):
+        self.hide()
+        self.after_id = self.widget.after(350, self.show)
+
+    def show(self):
+        if self.tip or not self.widget.winfo_exists():
+            return
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        self.tip = ctk.CTkToplevel(self.widget)
+        self.tip.overrideredirect(True)
+        self.tip.attributes("-topmost", True)
+        self.tip.configure(fg_color="#252b34")
+        self.tip.geometry(f"+{x}+{y}")
+        ctk.CTkLabel(
+            self.tip,
+            text=self.text,
+            fg_color="#252b34",
+            text_color="#dce3ec",
+            corner_radius=5,
+            font=("Segoe UI", 10),
+        ).pack(ipadx=7, ipady=3)
+
+    def hide(self, _event=None):
+        if self.after_id:
+            self.widget.after_cancel(self.after_id)
+            self.after_id = None
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
+
 class CVInputUI(ctk.CTk):
+    WIDTH = 360
+    HEIGHT = 210
+    SETTINGS_SIZE = (334, 392)
+    ABOUT_SIZE = (314, 226)
+
     def __init__(self, controller, config):
         super().__init__()
         self.controller = controller
         self.config = config
         self.settings_window = None
+        self.about_window = None
+        self.tooltips = {}
+        self.drag_x = 0
+        self.drag_y = 0
+        self.map_binding = None
+        self.language_codes = {}
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
 
         self.title(APP_NAME)
-        self.geometry("320x210+980+120")
-        self.minsize(280, 92)
+        self.overrideredirect(True)
+        self.geometry(f"{self.WIDTH}x{self.HEIGHT}+980+120")
         self.resizable(False, False)
         self.attributes("-topmost", bool(config["always_on_top"]))
         self.attributes("-alpha", float(config["opacity"]))
         self.protocol("WM_DELETE_WINDOW", controller.close)
-        self.configure(fg_color="#15181d")
+        self.configure(fg_color=SURFACE)
 
         self.build_main_ui()
-        if config.get("mini_mode"):
-            self.set_mini_mode(True)
+        self.refresh_texts(rebuild_popups=False)
+
+    def t(self, key, **kwargs):
+        return self.controller.t(key, **kwargs)
 
     def build_main_ui(self):
-        self.main_frame = ctk.CTkFrame(self, fg_color="#1b1f25", corner_radius=12, border_width=1, border_color="#2a3038")
-        self.main_frame.pack(fill="both", expand=True, padx=6, pady=6)
-
-        top = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        top.pack(fill="x", padx=10, pady=(8, 4))
-
-        self.title_label = ctk.CTkLabel(top, text=APP_NAME, font=("Segoe UI", 13, "bold"), text_color="#edf1f6")
-        self.title_label.pack(side="left")
-
-        self.status_dot = ctk.CTkLabel(top, text="●", font=("Segoe UI", 13), text_color="#6fb49d", width=18)
-        self.status_dot.pack(side="left", padx=(6, 0))
-
-        self.settings_button = ctk.CTkButton(
-            top,
-            text="⚙",
-            width=28,
-            height=24,
-            corner_radius=7,
-            fg_color="#242a33",
-            hover_color="#303844",
-            command=self.open_settings,
+        self.main_frame = ctk.CTkFrame(
+            self,
+            fg_color=SURFACE,
+            corner_radius=14,
+            border_width=1,
+            border_color=BORDER,
         )
-        self.settings_button.pack(side="right")
+        self.main_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
-        self.content_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.content_frame.pack(fill="both", expand=True, padx=10, pady=(0, 4))
+        self.titlebar = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=48)
+        self.titlebar.pack(fill="x", padx=8, pady=(5, 2))
+        self.titlebar.pack_propagate(False)
+        self.titlebar.grid_columnconfigure(0, weight=0, minsize=76)
+        self.titlebar.grid_columnconfigure(1, weight=1)
+        self.titlebar.grid_columnconfigure(2, weight=0, minsize=86)
 
+        self.left_tools = ctk.CTkFrame(self.titlebar, fg_color="transparent")
+        self.left_tools.grid(row=0, column=0, sticky="w")
+        self.settings_button = self.icon_button(self.left_tools, "⚙", self.open_settings, "tooltip.settings")
+        self.settings_button.pack(side="left")
+        self.about_button = self.icon_button(self.left_tools, "ⓘ", self.open_about, "tooltip.about")
+        self.about_button.pack(side="left", padx=(2, 0))
+
+        self.title_group = ctk.CTkFrame(self.titlebar, fg_color="transparent")
+        self.title_group.grid(row=0, column=1, sticky="nsew")
+        self.title_label = ctk.CTkLabel(self.title_group, text="", font=("Segoe UI", 13, "bold"), text_color=TEXT, height=20)
+        self.title_label.pack(anchor="center", pady=(2, 0))
+        self.subtitle_label = ctk.CTkLabel(self.title_group, text="", font=("Segoe UI", 9), text_color=MUTED, height=16)
+        self.subtitle_label.pack(anchor="center")
+
+        self.right_tools = ctk.CTkFrame(self.titlebar, fg_color="transparent")
+        self.right_tools.grid(row=0, column=2, sticky="e")
+        self.pin_button = self.icon_button(self.right_tools, "📌", self.controller.toggle_always_on_top, "tooltip.pin")
+        self.pin_button.pack(side="left")
+        self.minimize_button = self.icon_button(self.right_tools, "-", self.minimize_window, "tooltip.minimize")
+        self.minimize_button.pack(side="left", padx=(2, 0))
+        self.close_button = self.icon_button(self.right_tools, "×", self.controller.close, "tooltip.close")
+        self.close_button.pack(side="left", padx=(2, 0))
+
+        for widget in (self.titlebar, self.title_group, self.title_label, self.subtitle_label):
+            widget.bind("<ButtonPress-1>", self.start_drag, add="+")
+            widget.bind("<B1-Motion>", self.drag_window, add="+")
+
+        self.preview_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.preview_frame.pack(fill="x", padx=12, pady=(0, 6))
         self.text_box = ctk.CTkTextbox(
-            self.content_frame,
-            height=90,
-            corner_radius=8,
+            self.preview_frame,
+            height=76,
+            corner_radius=9,
             border_width=1,
             border_color="#303743",
-            fg_color="#12151a",
-            text_color="#e0e5ec",
+            fg_color=SURFACE_DARK,
+            text_color=TEXT,
             font=("Segoe UI", 11),
             wrap="word",
         )
-        self.text_box.pack(fill="both", expand=True)
+        self.text_box.pack(fill="x")
 
-        buttons = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        buttons.pack(fill="x", pady=(7, 0))
-
-        self.input_button = self.compact_button(buttons, "输入", self.controller.start_typing_from_button, primary=True)
+        self.action_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=29)
+        self.action_frame.pack(fill="x", padx=12, pady=(0, 4))
+        self.action_frame.pack_propagate(False)
+        self.input_button = self.icon_button(self.action_frame, "▶", self.controller.start_typing_from_button, "tooltip.type")
         self.input_button.pack(side="left")
-        self.stop_button = self.compact_button(buttons, "停止", self.controller.stop_typing)
-        self.stop_button.pack(side="left", padx=(5, 0))
-        self.read_button = self.compact_button(buttons, "读取", self.controller.read_clipboard_now)
-        self.read_button.pack(side="left", padx=(5, 0))
+        self.stop_button = self.icon_button(self.action_frame, "■", self.controller.stop_typing, "tooltip.stop")
+        self.stop_button.pack(side="left", padx=(3, 0))
+        self.read_button = self.icon_button(self.action_frame, "↻", self.controller.read_clipboard_now, "tooltip.read_clipboard")
+        self.read_button.pack(side="left", padx=(3, 0))
 
         self.listen_switch = ctk.CTkSwitch(
-            buttons,
-            text="监听",
-            width=58,
-            switch_width=32,
-            switch_height=17,
-            progress_color="#426d64",
+            self.action_frame,
+            text="",
+            width=62,
+            switch_width=30,
+            switch_height=16,
+            progress_color=ACCENT,
             button_color="#dce4ee",
-            font=("Segoe UI", 11),
-            command=self.controller.toggle_clipboard_listener,
+            font=("Segoe UI", 10),
+            command=lambda: self.controller.set_clipboard_listener(bool(self.listen_switch.get())),
         )
-        self.listen_switch.pack(side="right")
+        self.listen_switch.pack(side="right", pady=(4, 0))
         if self.config["auto_clipboard"]:
             self.listen_switch.select()
 
         self.status_label = ctk.CTkLabel(
             self.main_frame,
-            text="启动中",
+            text="",
             anchor="w",
             font=("Segoe UI", 10),
-            text_color="#8f98a6",
+            text_color=MUTED,
             height=18,
         )
-        self.status_label.pack(fill="x", padx=10, pady=(0, 7))
+        self.status_label.pack(fill="x", padx=12, pady=(0, 8))
 
-    def compact_button(self, parent, text, command, primary=False):
-        return ctk.CTkButton(
+    def icon_button(self, parent, text, command, tooltip_key):
+        button = ctk.CTkButton(
             parent,
             text=text,
-            width=52,
-            height=27,
-            corner_radius=7,
-            fg_color="#29433f" if primary else "#242a33",
-            hover_color="#34554f" if primary else "#303844",
-            text_color="#edf1f6",
-            font=("Segoe UI", 11),
+            width=25,
+            height=25,
+            corner_radius=6,
+            border_width=0,
+            fg_color="transparent",
+            hover_color=HOVER,
+            text_color="#c7d0dc",
+            font=("Segoe UI Symbol", 13),
             command=command,
         )
+        self.tooltips[button] = (tooltip_key, Tooltip(button, self.t(tooltip_key)))
+        return button
+
+    def refresh_texts(self, rebuild_popups=True):
+        self.title_label.configure(text=self.t("app.title"))
+        self.subtitle_label.configure(text=self.t("app.subtitle"))
+        self.listen_switch.configure(text=self.t("label.listen"))
+        for _button, (key, tooltip) in self.tooltips.items():
+            tooltip.set_text(self.t(key))
+        self.update_pin_button(bool(self.config["always_on_top"]))
+        if rebuild_popups:
+            settings_open = self.widget_exists(self.settings_window)
+            about_open = self.widget_exists(self.about_window)
+            if settings_open:
+                self.close_settings()
+                self.after(10, self.open_settings)
+            if about_open:
+                self.close_about()
+                self.after(10, self.open_about)
 
     def open_settings(self):
-        if self.settings_window and self.settings_window.winfo_exists():
+        if self.widget_exists(self.settings_window):
+            self.position_popup(self.settings_window, *self.SETTINGS_SIZE)
             self.settings_window.lift()
             self.settings_window.focus()
             return
 
         win = ctk.CTkToplevel(self)
-        win.title("设置")
-        win.geometry("310x330")
-        win.resizable(False, False)
-        win.transient(self)
-        win.attributes("-topmost", bool(self.config["always_on_top"]))
-        win.attributes("-alpha", float(self.config["opacity"]))
-        win.configure(fg_color="#15181d")
         self.settings_window = win
+        self.prepare_popup(win, *self.SETTINGS_SIZE)
+        frame = self.popup_frame(win)
+        self.popup_header(frame, "label.settings", self.close_settings)
 
-        frame = ctk.CTkFrame(win, fg_color="#1b1f25", corner_radius=12, border_width=1, border_color="#2a3038")
-        frame.pack(fill="both", expand=True, padx=8, pady=8)
+        content = ctk.CTkScrollableFrame(frame, fg_color="transparent", corner_radius=0, height=295)
+        content.pack(fill="both", expand=True, padx=10, pady=(0, 6))
 
-        ctk.CTkLabel(frame, text="设置", font=("Segoe UI", 14, "bold"), text_color="#edf1f6").pack(anchor="w", padx=14, pady=(12, 8))
+        hotkey_row = ctk.CTkFrame(content, fg_color="transparent")
+        hotkey_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(hotkey_row, text=self.t("label.hotkey"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.hotkey_entry = self.setting_entry(hotkey_row, str(self.config["hotkey"]))
+        self.hotkey_entry.pack(side="left", fill="x", expand=True)
+        self.apply_hotkey_button = self.icon_button(hotkey_row, "✓", self.apply_hotkey_from_settings, "tooltip.apply_hotkey")
+        self.apply_hotkey_button.pack(side="left", padx=(5, 0))
 
-        self.hotkey_entry = self.setting_entry(frame, "快捷键", str(self.config["hotkey"]))
-        self.interval_entry = self.setting_entry(frame, "输入间隔", str(self.config["interval"]))
+        self.interval_entry = self.setting_row(content, "label.interval", str(self.config["interval"]))
 
-        self.topmost_switch = self.setting_switch(frame, "窗口置顶", self.config["always_on_top"], self.controller.set_always_on_top)
-        self.clipboard_switch = self.setting_switch(frame, "自动监听剪贴板", self.config["auto_clipboard"], self.controller.set_clipboard_listener)
-        self.clear_switch = self.setting_switch(frame, "输入后清空", self.config["clear_after_input"], self.controller.set_clear_after_input)
-        self.mini_switch = self.setting_switch(frame, "迷你模式", self.config["mini_mode"], self.controller.set_mini_mode)
+        self.clipboard_switch = self.setting_switch(
+            content,
+            "label.auto_clipboard",
+            self.config["auto_clipboard"],
+            lambda: self.controller.set_clipboard_listener(bool(self.clipboard_switch.get())),
+        )
+        self.clear_switch = self.setting_switch(
+            content,
+            "label.clear_after_typing",
+            self.config["clear_after_input"],
+            lambda: self.controller.set_clear_after_input(bool(self.clear_switch.get())),
+        )
+        self.close_to_tray_switch = self.setting_switch(
+            content,
+            "label.close_to_tray",
+            self.config["close_to_tray"],
+            lambda: self.controller.set_close_to_tray(bool(self.close_to_tray_switch.get())),
+        )
+        self.startup_switch = self.setting_switch(
+            content,
+            "label.startup_on_boot",
+            self.config["startup_on_boot"],
+            lambda: self.controller.set_startup_on_boot(bool(self.startup_switch.get())),
+        )
 
-        opacity_row = ctk.CTkFrame(frame, fg_color="transparent")
-        opacity_row.pack(fill="x", padx=14, pady=(7, 2))
-        ctk.CTkLabel(opacity_row, text="透明度", width=72, anchor="w", font=("Segoe UI", 11), text_color="#c6ced9").pack(side="left")
+        opacity_row = ctk.CTkFrame(content, fg_color="transparent")
+        opacity_row.pack(fill="x", pady=(7, 3))
+        ctk.CTkLabel(opacity_row, text=self.t("label.opacity"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
         self.opacity_slider = ctk.CTkSlider(
             opacity_row,
             from_=0.55,
             to=1.0,
+            height=12,
             number_of_steps=45,
-            progress_color="#426d64",
+            progress_color=ACCENT,
             button_color="#6fb49d",
             command=self.controller.set_opacity,
         )
         self.opacity_slider.set(float(self.config["opacity"]))
         self.opacity_slider.pack(side="left", fill="x", expand=True)
 
-        actions = ctk.CTkFrame(frame, fg_color="transparent")
-        actions.pack(fill="x", padx=14, pady=(12, 8))
-        ctk.CTkButton(
-            actions,
-            text="应用快捷键",
-            height=28,
-            corner_radius=7,
-            fg_color="#29433f",
-            hover_color="#34554f",
-            command=self.apply_hotkey_from_settings,
-        ).pack(side="left")
-        ctk.CTkLabel(actions, text=f"v{APP_VERSION}", font=("Segoe UI", 10), text_color="#7f8998").pack(side="right")
+        language_row = ctk.CTkFrame(content, fg_color="transparent")
+        language_row.pack(fill="x", pady=(7, 3))
+        ctk.CTkLabel(language_row, text=self.t("label.language"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.language_codes = {
+            self.t("label.language.zh_cn"): "zh_cn",
+            self.t("label.language.en_us"): "en_us",
+        }
+        self.language_menu = ctk.CTkOptionMenu(
+            language_row,
+            values=list(self.language_codes.keys()),
+            width=150,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            command=self.on_language_selected,
+        )
+        current_label = self.t(f"label.language.{self.config['language']}")
+        self.language_menu.set(current_label)
+        self.language_menu.pack(side="left", fill="x", expand=True)
 
-    def setting_entry(self, parent, label, value):
-        row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.pack(fill="x", padx=14, pady=4)
-        ctk.CTkLabel(row, text=label, width=72, anchor="w", font=("Segoe UI", 11), text_color="#c6ced9").pack(side="left")
+        self.settings_status = ctk.CTkLabel(frame, text="", anchor="w", font=("Segoe UI", 10), text_color=MUTED, height=18)
+        self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
+        self.position_popup(win, *self.SETTINGS_SIZE)
+
+    def open_about(self):
+        if self.widget_exists(self.about_window):
+            self.position_popup(self.about_window, *self.ABOUT_SIZE)
+            self.about_window.lift()
+            self.about_window.focus()
+            return
+
+        win = ctk.CTkToplevel(self)
+        self.about_window = win
+        self.prepare_popup(win, *self.ABOUT_SIZE)
+        frame = self.popup_frame(win)
+        watermark = ctk.CTkLabel(
+            frame,
+            text=self.t("about.watermark"),
+            font=("Microsoft YaHei UI", 30, "bold"),
+            text_color="#252b33",
+        )
+        watermark.place(relx=0.5, rely=0.55, anchor="center")
+
+        self.popup_header(frame, "label.about", self.close_about)
+        body = ctk.CTkFrame(frame, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=16, pady=(0, 10))
+
+        top = ctk.CTkFrame(body, fg_color="transparent")
+        top.pack(fill="x")
+        ctk.CTkLabel(top, text=APP_NAME, font=("Segoe UI", 16, "bold"), text_color=TEXT).pack(side="left")
+        ctk.CTkLabel(top, text=f"v{APP_VERSION}", font=("Segoe UI", 10), text_color=MUTED).pack(side="right")
+        ctk.CTkLabel(body, text=f"{self.t('label.author')}: {self.t('about.author')}", font=("Segoe UI", 11), text_color="#c6ced9").pack(anchor="w", pady=(8, 0))
+        ctk.CTkLabel(body, text=self.t("about.description"), font=("Segoe UI", 11), text_color="#c6ced9").pack(anchor="w")
+        ctk.CTkLabel(body, text=self.t("about.idea"), font=("Segoe UI", 10), text_color="#6fb49d").pack(anchor="w", pady=(1, 6))
+
+        actions = ctk.CTkFrame(body, fg_color="transparent")
+        actions.pack(fill="x")
+        github_button = self.icon_button(actions, "⌁", self.controller.open_github, "tooltip.github")
+        github_button.pack(side="left")
+        email_button = self.icon_button(actions, "✉", self.controller.copy_email, "tooltip.email")
+        email_button.pack(side="left", padx=(4, 0))
+        self.position_popup(win, *self.ABOUT_SIZE)
+
+    def prepare_popup(self, win, width, height):
+        win.overrideredirect(True)
+        win.resizable(False, False)
+        win.attributes("-topmost", bool(self.config["always_on_top"]))
+        win.attributes("-alpha", float(self.config["opacity"]))
+        win.configure(fg_color=SURFACE)
+        win.geometry(f"{width}x{height}")
+
+    def popup_frame(self, win):
+        frame = ctk.CTkFrame(win, fg_color=SURFACE, corner_radius=12, border_width=1, border_color=BORDER)
+        frame.pack(fill="both", expand=True)
+        return frame
+
+    def popup_header(self, parent, title_key, close_command):
+        header = ctk.CTkFrame(parent, fg_color="transparent", height=34)
+        header.pack(fill="x", padx=10, pady=(7, 3))
+        header.pack_propagate(False)
+        ctk.CTkLabel(header, text=self.t(title_key), font=("Segoe UI", 13, "bold"), text_color=TEXT).pack(side="left")
+        close_button = self.icon_button(header, "×", close_command, "tooltip.close")
+        close_button.pack(side="right")
+
+    def position_popup(self, win, width, height):
+        root_x = self.winfo_rootx()
+        root_y = self.winfo_rooty()
+        root_w = self.winfo_width()
+        root_h = self.winfo_height()
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        x = root_x + root_w + 8
+        y = root_y
+        if x + width > screen_w:
+            x = root_x
+            y = root_y + root_h + 8
+        if y + height > screen_h:
+            y = max(0, screen_h - height - 40)
+        win.geometry(f"{width}x{height}+{x}+{y}")
+
+    def close_settings(self):
+        if self.widget_exists(self.settings_window):
+            self.settings_window.destroy()
+        self.settings_window = None
+
+    def close_about(self):
+        if self.widget_exists(self.about_window):
+            self.about_window.destroy()
+        self.about_window = None
+
+    def setting_entry(self, parent, value):
         entry = ctk.CTkEntry(
-            row,
-            height=28,
-            corner_radius=7,
+            parent,
+            height=25,
+            corner_radius=6,
             border_color="#303743",
-            fg_color="#12151a",
-            text_color="#e0e5ec",
-            font=("Segoe UI", 11),
+            fg_color=SURFACE_DARK,
+            text_color=TEXT,
+            font=("Segoe UI", 10),
         )
         entry.insert(0, value)
+        return entry
+
+    def setting_row(self, parent, label_key, value):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", pady=4)
+        ctk.CTkLabel(row, text=self.t(label_key), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        entry = self.setting_entry(row, value)
         entry.pack(side="left", fill="x", expand=True)
         return entry
 
-    def setting_switch(self, parent, text, value, command):
+    def setting_switch(self, parent, label_key, value, command):
         switch = ctk.CTkSwitch(
             parent,
-            text=text,
-            switch_width=32,
-            switch_height=17,
-            progress_color="#426d64",
+            text=self.t(label_key),
+            switch_width=30,
+            switch_height=16,
+            progress_color=ACCENT,
             button_color="#dce4ee",
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 10),
             command=command,
         )
-        switch.pack(anchor="w", padx=14, pady=4)
+        switch.pack(anchor="w", pady=4)
         if value:
             switch.select()
         return switch
 
     def apply_hotkey_from_settings(self):
-        hotkey = self.hotkey_entry.get().strip()
-        interval_text = self.interval_entry.get().strip()
-        self.controller.apply_settings_hotkey(hotkey, interval_text, self.settings_window)
+        self.controller.apply_settings_hotkey(self.hotkey_entry.get().strip(), self.interval_entry.get().strip())
+
+    def on_language_selected(self, label):
+        language = self.language_codes.get(label, "zh_cn")
+        self.controller.set_language(language)
+
+    def start_drag(self, event):
+        self.drag_x = event.x_root - self.winfo_x()
+        self.drag_y = event.y_root - self.winfo_y()
+
+    def drag_window(self, event):
+        self.geometry(f"+{event.x_root - self.drag_x}+{event.y_root - self.drag_y}")
+
+    def minimize_window(self):
+        self.overrideredirect(False)
+        self.iconify()
+        self.map_binding = self.bind("<Map>", self.restore_borderless, add="+")
+
+    def restore_borderless(self, _event=None):
+        self.after(10, lambda: self.overrideredirect(True))
+        if self.map_binding:
+            self.unbind("<Map>", self.map_binding)
+            self.map_binding = None
 
     def get_text(self):
         return self.text_box.get("1.0", "end-1c")
@@ -231,53 +482,52 @@ class CVInputUI(ctk.CTk):
             "error": "#d47d7d",
             "idle": "#7f8998",
         }
-        self.status_dot.configure(text_color=colors.get(state, colors["ready"]))
-        self.status_label.configure(text=text)
+        self.status_label.configure(text=text, text_color=colors.get(state, MUTED))
+        if self.widget_exists(getattr(self, "settings_status", None)):
+            self.settings_status.configure(text=text, text_color=colors.get(state, MUTED))
 
     def set_clipboard_switch(self, enabled):
         if enabled:
             self.listen_switch.select()
+            if self.widget_exists(getattr(self, "clipboard_switch", None)):
+                self.clipboard_switch.select()
         else:
             self.listen_switch.deselect()
+            if self.widget_exists(getattr(self, "clipboard_switch", None)):
+                self.clipboard_switch.deselect()
+
+    def set_startup_switch(self, enabled):
+        if self.widget_exists(getattr(self, "startup_switch", None)):
+            self.startup_switch.select() if enabled else self.startup_switch.deselect()
+
+    def set_close_to_tray_switch(self, enabled):
+        if self.widget_exists(getattr(self, "close_to_tray_switch", None)):
+            self.close_to_tray_switch.select() if enabled else self.close_to_tray_switch.deselect()
 
     def set_opacity_value(self, value):
-        self.attributes("-alpha", float(value))
-        if self.settings_window and self.settings_window.winfo_exists():
-            self.settings_window.attributes("-alpha", float(value))
+        alpha = float(value)
+        self.attributes("-alpha", alpha)
+        for win in (self.settings_window, self.about_window):
+            if self.widget_exists(win):
+                win.attributes("-alpha", alpha)
 
     def set_topmost_value(self, enabled):
         self.attributes("-topmost", bool(enabled))
-        if self.settings_window and self.settings_window.winfo_exists():
-            self.settings_window.attributes("-topmost", bool(enabled))
+        for win in (self.settings_window, self.about_window):
+            if self.widget_exists(win):
+                win.attributes("-topmost", bool(enabled))
+        self.update_pin_button(enabled)
 
-    def set_mini_mode(self, enabled):
-        if enabled:
-            self.content_frame.pack_forget()
-            self.geometry("280x76")
-        else:
-            self.content_frame.pack(fill="both", expand=True, padx=10, pady=(0, 4), before=self.status_label)
-            self.geometry("320x210")
+    def update_pin_button(self, enabled):
+        self.pin_button.configure(text="📌" if enabled else "📍")
 
-    def show_warning(self, title, message):
-        win = ctk.CTkToplevel(self)
-        win.title(title)
-        win.geometry("280x132")
-        win.resizable(False, False)
-        win.transient(self)
-        win.attributes("-topmost", bool(self.config["always_on_top"]))
-        win.configure(fg_color="#15181d")
+    def show_warning(self, _title, message):
+        self.set_status(message, "error")
 
-        frame = ctk.CTkFrame(win, fg_color="#1b1f25", corner_radius=12, border_width=1, border_color="#2a3038")
-        frame.pack(fill="both", expand=True, padx=8, pady=8)
-        ctk.CTkLabel(frame, text=title, font=("Segoe UI", 13, "bold"), text_color="#edf1f6").pack(anchor="w", padx=14, pady=(12, 4))
-        ctk.CTkLabel(frame, text=message, font=("Segoe UI", 11), text_color="#c6ced9", wraplength=230, justify="left").pack(anchor="w", padx=14)
-        ctk.CTkButton(
-            frame,
-            text="确定",
-            width=64,
-            height=28,
-            corner_radius=7,
-            fg_color="#29433f",
-            hover_color="#34554f",
-            command=win.destroy,
-        ).pack(anchor="e", padx=14, pady=(12, 10))
+    def widget_exists(self, widget):
+        if widget is None:
+            return False
+        try:
+            return bool(widget.winfo_exists())
+        except Exception:
+            return False
