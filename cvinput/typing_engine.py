@@ -7,9 +7,11 @@ class TypingEngine:
     def __init__(self):
         self.controller = Controller()
 
-    def type_text(self, text, interval, stop_event, release_keys, newline_with_shift_enter=True):
+    def type_text(self, text, interval, stop_event, release_keys, newline_with_shift_enter=True, on_progress=None):
         self._release_trigger_keys(release_keys)
         time.sleep(0.05)
+        total = len(text)
+        done = 0
         for char in text:
             if stop_event.is_set():
                 break
@@ -29,6 +31,9 @@ class TypingEngine:
                 self.controller.release(Key.tab)
             else:
                 self.controller.type(char)
+            done += 1
+            if on_progress:
+                on_progress(done, total)
             time.sleep(interval)
 
     def _release_trigger_keys(self, release_keys):

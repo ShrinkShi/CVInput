@@ -6,7 +6,7 @@ import pyperclip
 
 from .clipboard import ClipboardMonitor
 from .config import ConfigStore
-from .constants import APP_NAME, DEFAULT_CONFIG, DEFAULT_INTERVAL
+from .constants import APP_NAME, DEFAULT_CONFIG
 from .hotkey import HotkeyManager
 from .ime import maybe_toggle_ime_before_typing, restore_ime_after_typing
 from .i18n import Translator
@@ -145,6 +145,7 @@ class CVInputApp:
             return
 
         self.typing_stop_event.clear()
+        self.ui.reset_input_progress()
         self.ui.set_status(self.t("status.typing"), "working")
         self.typing_thread = threading.Thread(
             target=self._typing_worker,
@@ -157,12 +158,17 @@ class CVInputApp:
         should_restore_ime = False
         try:
             should_restore_ime = maybe_toggle_ime_before_typing(self.config)
+            progress_callback = lambda done, total: self.ui.after(
+                0,
+                lambda current=done, count=total: self.ui.set_input_progress(current, count),
+            )
             self.typing_engine.type_text(
                 text,
                 interval,
                 self.typing_stop_event,
                 release_keys,
                 bool(self.config["newline_with_shift_enter"]),
+                progress_callback,
             )
             stopped = self.typing_stop_event.is_set()
             self.ui.after(0, lambda: self.on_typing_done(stopped))
@@ -327,13 +333,7 @@ class CVInputApp:
         self.ui.refresh_texts(rebuild_popups=True)
         self.ui.set_status(self.t("status.defaults_restored"), "ready")
 
-    def apply_settings_hotkey(self, hotkey, interval_text):
-        try:
-            interval = float(interval_text)
-        except ValueError:
-            interval = DEFAULT_INTERVAL
-
-        interval = min(max(interval, 0.005), 0.5)
+    def apply_settings_hotkey(self, hotkey):
         if not hotkey:
             self.ui.show_warning("hotkey", self.t("status.hotkey_empty"))
             return
@@ -345,7 +345,6 @@ class CVInputApp:
 
         old_hotkey = self.config["hotkey"]
         self.config["hotkey"] = hotkey
-        self.config["interval"] = interval
         message = self.refresh_main_hotkey_registration(force=True)
         if message:
             self.config["hotkey"] = old_hotkey
@@ -354,6 +353,21 @@ class CVInputApp:
             return
 
         self.save_config()
+        self.ui.set_status(self.t("status.hotkey_applied", hotkey=hotkey), "ready")
+
+    def apply_settings_interval(self, interval_text):
+        try:
+            interval = float(interval_text)
+        except ValueError:
+            self.ui.show_warning("interval", self.t("status.interval_invalid"))
+            return
+        if not 0.005 <= interval <= 1.0:
+            self.ui.show_warning("interval", self.t("status.interval_invalid"))
+            return
+        self.config["interval"] = round(interval, 4)
+        self.save_config()
+        self.ui.sync_config_controls()
+        self.ui.set_status(self.t("status.interval_updated", interval=self.config["interval"]), "ready")
 
     def open_github(self):
         webbrowser.open(GITHUB_URL)

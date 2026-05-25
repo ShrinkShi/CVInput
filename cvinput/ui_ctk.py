@@ -66,6 +66,9 @@ class Tooltip:
 class CVInputUI(ctk.CTk):
     WIDTH = 360
     HEIGHT = 210
+    EXPANDED_HEIGHT = 620
+    SLOT_FRAME_HEIGHT = 392
+    SLOT_TEXTBOX_HEIGHT = 30
     SETTINGS_SIZE = (344, 454)
     ABOUT_SIZE = (314, 226)
 
@@ -82,6 +85,10 @@ class CVInputUI(ctk.CTk):
         self.popup_drag_y = 0
         self.map_binding = None
         self.language_codes = {}
+        self.multi_slot_frame = None
+        self.slot_entries = []
+        self.child_popups = []
+        self.outside_click_binding = None
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -163,47 +170,44 @@ class CVInputUI(ctk.CTk):
         self.text_box.bind("<KeyRelease>", lambda _event: self.controller.on_main_text_changed(), add="+")
         self.text_box.bind("<FocusOut>", lambda _event: self.controller.on_main_text_changed(), add="+")
 
-        self.multi_slot_frame = ctk.CTkScrollableFrame(
-            self.main_frame,
-            fg_color=PANEL,
-            corner_radius=9,
-            border_width=1,
-            border_color=BORDER,
-            height=168,
-        )
-        self.slot_entries = []
-        for index, label in enumerate([self.t(f"label.slot_{slot}") for slot in (1, 2, 3, 4, 5, 6, 7, 8, 9, 0)]):
-            row = ctk.CTkFrame(self.multi_slot_frame, fg_color="transparent")
-            row.pack(fill="x", pady=2)
-            ctk.CTkLabel(row, text=label, width=46, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
-            entry = ctk.CTkTextbox(
-                row,
-                height=42,
-                corner_radius=6,
-                border_width=1,
-                border_color="#303743",
-                fg_color=SURFACE_DARK,
-                text_color=TEXT,
-                font=("Segoe UI", 10),
-                wrap="word",
-            )
-            entry.insert("1.0", self.config["multi_slots"][index] if index < len(self.config["multi_slots"]) else "")
-            entry.pack(side="left", fill="x", expand=True)
-            entry.bind("<KeyRelease>", lambda _event, slot_index=index, slot_entry=entry: self.controller.update_multi_slot(slot_index, slot_entry.get("1.0", "end-1c")), add="+")
-            entry.bind("<FocusOut>", lambda _event, slot_index=index, slot_entry=entry: self.controller.update_multi_slot(slot_index, slot_entry.get("1.0", "end-1c")), add="+")
-            self.slot_entries.append(entry)
-        if self.config["multi_slot_enabled"]:
-            self.multi_slot_frame.pack(fill="x", padx=12, pady=(0, 6))
-
         self.action_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", height=29)
         self.action_frame.pack(fill="x", padx=12, pady=(0, 4))
         self.action_frame.pack_propagate(False)
-        self.input_button = self.icon_button(self.action_frame, "▶", self.controller.start_typing_from_button, "tooltip.type")
+        self.input_button = self.icon_button(
+            self.action_frame,
+            "✍️",
+            self.controller.start_typing_from_button,
+            "tooltip.type",
+            text_color="#6fb49d",
+            font=("Segoe UI Emoji", 13),
+        )
         self.input_button.pack(side="left")
-        self.stop_button = self.icon_button(self.action_frame, "■", self.controller.stop_typing, "tooltip.stop")
+        self.stop_button = self.icon_button(
+            self.action_frame,
+            "■",
+            self.controller.stop_typing,
+            "tooltip.stop",
+            text_color="#d47d7d",
+        )
         self.stop_button.pack(side="left", padx=(3, 0))
-        self.read_button = self.icon_button(self.action_frame, "↻", self.controller.read_clipboard_now, "tooltip.read_clipboard")
+        self.read_button = self.icon_button(
+            self.action_frame,
+            "📄",
+            self.controller.read_clipboard_now,
+            "tooltip.read_clipboard",
+            font=("Segoe UI Emoji", 13),
+        )
         self.read_button.pack(side="left", padx=(3, 0))
+        self.progress_bar = ctk.CTkProgressBar(
+            self.action_frame,
+            width=128,
+            height=5,
+            corner_radius=4,
+            fg_color="#242a33",
+            progress_color="#6fb49d",
+        )
+        self.progress_bar.set(0)
+        self.progress_bar.pack(side="left", padx=(9, 0), pady=(12, 0))
 
         self.listen_switch = ctk.CTkSwitch(
             self.action_frame,
@@ -230,7 +234,7 @@ class CVInputUI(ctk.CTk):
         )
         self.status_label.pack(fill="x", padx=12, pady=(0, 8))
 
-    def icon_button(self, parent, text, command, tooltip_key):
+    def icon_button(self, parent, text, command, tooltip_key, text_color="#c7d0dc", font=("Segoe UI Symbol", 13)):
         button = ctk.CTkButton(
             parent,
             text=text,
@@ -240,8 +244,8 @@ class CVInputUI(ctk.CTk):
             border_width=0,
             fg_color="transparent",
             hover_color=HOVER,
-            text_color="#c7d0dc",
-            font=("Segoe UI Symbol", 13),
+            text_color=text_color,
+            font=font,
             command=command,
         )
         self.tooltips[button] = (tooltip_key, Tooltip(button, self.t(tooltip_key)))
@@ -266,11 +270,12 @@ class CVInputUI(ctk.CTk):
 
     def open_settings(self):
         if self.widget_exists(self.settings_window):
-            self.position_popup(self.settings_window, *self.SETTINGS_SIZE)
+            self.center_child_window(self.settings_window, self, *self.SETTINGS_SIZE)
             self.settings_window.lift()
             self.settings_window.focus()
             return
 
+        self.close_about()
         win = ctk.CTkToplevel(self)
         self.settings_window = win
         self.prepare_popup(win, *self.SETTINGS_SIZE)
@@ -288,7 +293,13 @@ class CVInputUI(ctk.CTk):
         self.apply_hotkey_button = self.icon_button(hotkey_row, "✓", self.apply_hotkey_from_settings, "tooltip.apply_hotkey")
         self.apply_hotkey_button.pack(side="left", padx=(5, 0))
 
-        self.interval_entry = self.setting_row(content, "label.interval", str(self.config["interval"]))
+        interval_row = ctk.CTkFrame(content, fg_color="transparent")
+        interval_row.pack(fill="x", pady=4)
+        ctk.CTkLabel(interval_row, text=self.t("label.interval"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.interval_entry = self.setting_entry(interval_row, str(self.config["interval"]))
+        self.interval_entry.pack(side="left", fill="x", expand=True)
+        self.apply_interval_button = self.icon_button(interval_row, "✓", self.apply_interval_from_settings, "tooltip.apply_interval")
+        self.apply_interval_button.pack(side="left", padx=(5, 0))
 
         self.clipboard_switch = self.setting_switch(
             content,
@@ -390,15 +401,17 @@ class CVInputUI(ctk.CTk):
 
         self.settings_status = ctk.CTkLabel(frame, text="", anchor="w", font=("Segoe UI", 10), text_color=MUTED, height=18)
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
-        self.position_popup(win, *self.SETTINGS_SIZE)
+        self.center_child_window(win, self, *self.SETTINGS_SIZE)
+        self.register_child_popup(win, self.close_settings)
 
     def open_about(self):
         if self.widget_exists(self.about_window):
-            self.position_popup(self.about_window, *self.ABOUT_SIZE)
+            self.center_child_window(self.about_window, self, *self.ABOUT_SIZE)
             self.about_window.lift()
             self.about_window.focus()
             return
 
+        self.close_settings()
         win = ctk.CTkToplevel(self)
         self.about_window = win
         self.prepare_popup(win, *self.ABOUT_SIZE)
@@ -429,7 +442,8 @@ class CVInputUI(ctk.CTk):
         github_button.pack(side="left")
         email_button = self.icon_button(actions, "@", self.controller.copy_email, "tooltip.email")
         email_button.pack(side="left", padx=(4, 0))
-        self.position_popup(win, *self.ABOUT_SIZE)
+        self.center_child_window(win, self, *self.ABOUT_SIZE)
+        self.register_child_popup(win, self.close_about)
 
     def prepare_popup(self, win, width, height):
         win.overrideredirect(True)
@@ -465,34 +479,77 @@ class CVInputUI(ctk.CTk):
             widget.bind("<B1-Motion>", lambda event, target=win: self.drag_popup(target, event), add="+")
 
     def position_popup(self, win, width, height):
-        self.update_idletasks()
-        win.update_idletasks()
-        root_x = self.winfo_rootx()
-        root_y = self.winfo_rooty()
-        root_w = self.winfo_width()
-        root_h = self.winfo_height()
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
-        x = root_x + (root_w - width) // 2
-        y = root_y + (root_h - height) // 2
+        self.center_child_window(win, self, width, height)
+
+    def center_child_window(self, child, parent, width=None, height=None):
+        parent.update_idletasks()
+        child.update_idletasks()
+        child_w = width or child.winfo_width() or child.winfo_reqwidth()
+        child_h = height or child.winfo_height() or child.winfo_reqheight()
+        parent_x = parent.winfo_rootx()
+        parent_y = parent.winfo_rooty()
+        parent_w = parent.winfo_width()
+        parent_h = parent.winfo_height()
+        screen_w = parent.winfo_screenwidth()
+        screen_h = parent.winfo_screenheight()
+        x = parent_x + (parent_w - child_w) // 2
+        y = parent_y + (parent_h - child_h) // 2
         if x < 0:
             x = 0
         if y < 0:
             y = 0
-        if x + width > screen_w:
-            x = max(0, screen_w - width - 8)
-        if y + height > screen_h:
-            y = max(0, screen_h - height - 40)
-        win.geometry(f"{width}x{height}+{x}+{y}")
+        if x + child_w > screen_w:
+            x = max(0, screen_w - child_w - 8)
+        if y + child_h > screen_h:
+            y = max(0, screen_h - child_h - 40)
+        child.geometry(f"{child_w}x{child_h}+{x}+{y}")
+
+    def register_child_popup(self, win, close_command):
+        self.child_popups = [(popup, closer) for popup, closer in self.child_popups if self.widget_exists(popup)]
+        self.child_popups.append((win, close_command))
+        if self.outside_click_binding is None:
+            self.after(80, self.bind_outside_click_close)
+
+    def bind_outside_click_close(self):
+        if self.outside_click_binding is None and self.child_popups:
+            self.outside_click_binding = self.bind("<ButtonPress-1>", self.close_child_popups_on_outside_click, add="+")
+
+    def close_child_popups_on_outside_click(self, event):
+        if event.widget in (self.settings_button, self.about_button):
+            return
+        for popup, close_command in list(self.child_popups):
+            if not self.widget_exists(popup):
+                self.forget_child_popup(popup)
+                continue
+            if not self.point_inside_window(event.x_root, event.y_root, popup):
+                close_command()
+
+    def point_inside_window(self, x, y, win):
+        return (
+            win.winfo_rootx() <= x < win.winfo_rootx() + win.winfo_width()
+            and win.winfo_rooty() <= y < win.winfo_rooty() + win.winfo_height()
+        )
+
+    def forget_child_popup(self, win):
+        self.child_popups = [(popup, closer) for popup, closer in self.child_popups if popup is not win and self.widget_exists(popup)]
+        if not self.child_popups and self.outside_click_binding is not None:
+            self.unbind("<ButtonPress-1>", self.outside_click_binding)
+            self.outside_click_binding = None
 
     def close_settings(self):
-        if self.widget_exists(self.settings_window):
-            self.settings_window.destroy()
+        win = self.settings_window
+        if self.widget_exists(win):
+            win.destroy()
+        if win is not None:
+            self.forget_child_popup(win)
         self.settings_window = None
 
     def close_about(self):
-        if self.widget_exists(self.about_window):
-            self.about_window.destroy()
+        win = self.about_window
+        if self.widget_exists(win):
+            win.destroy()
+        if win is not None:
+            self.forget_child_popup(win)
         self.about_window = None
 
     def setting_entry(self, parent, value):
@@ -533,7 +590,10 @@ class CVInputUI(ctk.CTk):
         return switch
 
     def apply_hotkey_from_settings(self):
-        self.controller.apply_settings_hotkey(self.hotkey_entry.get().strip(), self.interval_entry.get().strip())
+        self.controller.apply_settings_hotkey(self.hotkey_entry.get().strip())
+
+    def apply_interval_from_settings(self):
+        self.controller.apply_settings_interval(self.interval_entry.get().strip())
 
     def on_language_selected(self, label):
         language = self.language_codes.get(label, "zh_cn")
@@ -617,12 +677,52 @@ class CVInputUI(ctk.CTk):
     def set_multi_slot_visible(self, enabled):
         self.set_multi_slot_switch(enabled)
         if enabled:
-            if not self.multi_slot_frame.winfo_manager():
-                self.multi_slot_frame.pack(fill="x", padx=12, pady=(0, 6), before=self.action_frame)
-            self.geometry(f"{self.WIDTH}x400")
+            self.rebuild_multi_slot_frame()
+            self.multi_slot_frame.pack(fill="x", padx=12, pady=(0, 6), before=self.action_frame)
+            self.geometry(f"{self.WIDTH}x{self.EXPANDED_HEIGHT}")
         else:
-            self.multi_slot_frame.pack_forget()
+            self.destroy_multi_slot_frame()
             self.geometry(f"{self.WIDTH}x{self.HEIGHT}")
+        self.update_idletasks()
+
+    def rebuild_multi_slot_frame(self):
+        self.destroy_multi_slot_frame()
+        self.multi_slot_frame = ctk.CTkScrollableFrame(
+            self.main_frame,
+            fg_color=PANEL,
+            corner_radius=9,
+            border_width=1,
+            border_color=BORDER,
+            height=self.SLOT_FRAME_HEIGHT,
+        )
+        self.slot_entries = []
+        for index, label in enumerate([self.t(f"label.slot_{slot}") for slot in (1, 2, 3, 4, 5, 6, 7, 8, 9, 0)]):
+            row = ctk.CTkFrame(self.multi_slot_frame, fg_color="transparent", height=34)
+            row.pack(fill="x", pady=2)
+            row.pack_propagate(False)
+            ctk.CTkLabel(row, text=label, width=46, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+            entry = ctk.CTkTextbox(
+                row,
+                height=self.SLOT_TEXTBOX_HEIGHT,
+                corner_radius=6,
+                border_width=1,
+                border_color="#303743",
+                fg_color=SURFACE_DARK,
+                text_color=TEXT,
+                font=("Segoe UI", 10),
+                wrap="word",
+            )
+            entry.insert("1.0", self.config["multi_slots"][index] if index < len(self.config["multi_slots"]) else "")
+            entry.pack(side="left", fill="x", expand=True)
+            entry.bind("<KeyRelease>", lambda _event, slot_index=index, slot_entry=entry: self.controller.update_multi_slot(slot_index, slot_entry.get("1.0", "end-1c")), add="+")
+            entry.bind("<FocusOut>", lambda _event, slot_index=index, slot_entry=entry: self.controller.update_multi_slot(slot_index, slot_entry.get("1.0", "end-1c")), add="+")
+            self.slot_entries.append(entry)
+
+    def destroy_multi_slot_frame(self):
+        if self.widget_exists(self.multi_slot_frame):
+            self.multi_slot_frame.destroy()
+        self.multi_slot_frame = None
+        self.slot_entries = []
 
     def set_startup_switch(self, enabled):
         if self.widget_exists(getattr(self, "startup_switch", None)):
@@ -651,6 +751,15 @@ class CVInputUI(ctk.CTk):
 
     def show_warning(self, _title, message):
         self.set_status(message, "error")
+
+    def reset_input_progress(self):
+        self.progress_bar.set(0)
+
+    def set_input_progress(self, done, total):
+        if total <= 0:
+            self.progress_bar.set(0)
+            return
+        self.progress_bar.set(min(max(done / total, 0), 1))
 
     def sync_config_controls(self):
         self.set_clipboard_switch(bool(self.config["auto_clipboard"]))
