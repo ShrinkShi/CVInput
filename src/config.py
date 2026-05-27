@@ -3,7 +3,14 @@ import os
 import copy
 from pathlib import Path
 
-from .constants import DEFAULT_CONFIG
+from .constants import (
+    NEWLINE_METHOD_VERSION,
+    NEWLINE_METHODS,
+    NEWLINE_METHOD_PYAUTOGUI,
+    NEWLINE_METHOD_WIN32_SCAN,
+    NEWLINE_METHOD_WIN32_VK,
+    DEFAULT_CONFIG,
+)
 
 
 class ConfigStore:
@@ -36,7 +43,25 @@ class ConfigStore:
                     pass
             if "input_hotkey" not in data and "hotkey" in data:
                 data["input_hotkey"] = data["hotkey"]
+            if "developer_mode" not in data and "debug_mode" in data:
+                data["developer_mode"] = bool(data.get("debug_mode"))
+                if data["developer_mode"] and "debug_window_position" not in data:
+                    data["debug_window_position"] = True
+            if data.get("newline_shift_enter_method_version") != NEWLINE_METHOD_VERSION:
+                legacy_method = data.get("newline_shift_enter_method")
+                if legacy_method == "auto":
+                    data["newline_shift_enter_method"] = NEWLINE_METHOD_PYAUTOGUI
+                elif legacy_method == "win64":
+                    data["newline_shift_enter_method"] = NEWLINE_METHOD_WIN32_SCAN
+                elif legacy_method == "win32":
+                    data["newline_shift_enter_method"] = NEWLINE_METHOD_WIN32_VK
+                elif legacy_method not in NEWLINE_METHODS:
+                    data["newline_shift_enter_method"] = DEFAULT_CONFIG["newline_shift_enter_method"]
+                data["newline_shift_enter_method_version"] = NEWLINE_METHOD_VERSION
             config.update({key: data[key] for key in config.keys() & data.keys()})
+        if config.get("newline_shift_enter_method") not in NEWLINE_METHODS:
+            config["newline_shift_enter_method"] = DEFAULT_CONFIG["newline_shift_enter_method"]
+        config["newline_shift_enter_method_version"] = NEWLINE_METHOD_VERSION
         return config
 
     def save(self, config):

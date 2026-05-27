@@ -108,7 +108,7 @@ def left_attached_geometry(parent, child_width, child_height, gap=10):
     child_x = max(0, min(child_x, max(0, screen_w - child_visual_w)))
     child_y = max(0, min(child_y, max(0, screen_h - child_visual_h)))
     debug_log(
-        "DPI",
+        "WINDOW_POSITION",
         "left_attached_geometry",
         parent_geometry=parent.geometry(),
         tk_geometry_rect=rect,

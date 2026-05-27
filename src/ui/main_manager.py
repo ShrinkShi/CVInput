@@ -28,7 +28,7 @@ class MainManagerMixin:
         self.drag_x = event.x_root - self.winfo_x()
         self.drag_y = event.y_root - self.winfo_y()
         debug_log(
-            "WINDOW",
+            "WINDOW_POSITION",
             "start_drag",
             event_x_root=event.x_root,
             event_y_root=event.y_root,
@@ -46,7 +46,7 @@ class MainManagerMixin:
         new_y = event.y_root - self.drag_y
         if not getattr(self, "_debug_drag_printed", False):
             debug_log(
-                "WINDOW",
+                "WINDOW_POSITION",
                 "drag_window",
                 event_x_root=event.x_root,
                 event_y_root=event.y_root,

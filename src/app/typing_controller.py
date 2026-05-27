@@ -1,6 +1,6 @@
 import threading
 
-from ..constants import DEFAULT_INTERVAL_MS
+from ..constants import DEFAULT_INTERVAL_MS, DEFAULT_NEWLINE_SHIFT_ENTER_METHOD
 from ..ime import maybe_toggle_ime_before_typing, restore_ime_after_typing
 
 
@@ -13,7 +13,7 @@ class TypingController:
         if self.config["disable_hotkey_when_clipboard_empty"] and not self.ui.get_text().strip():
             self.refresh_main_hotkey_registration(force=True)
             return
-        self.start_typing(release_keys)
+        self.start_typing(release_keys, input_source="main_text_hotkey")
 
     def start_typing_from_slot(self, index, release_keys):
         slots = self.config.get("multi_slots", [])
@@ -21,12 +21,12 @@ class TypingController:
         if not text:
             self.ui.set_status(self.t("status.slot_empty", slot=self.slot_label(f"slot_{index}")), "idle")
             return
-        self.start_typing(release_keys, text=text)
+        self.start_typing(release_keys, text=text, input_source=f"slot_{index}")
 
     def start_typing_from_button(self):
-        self.start_typing([])
+        self.start_typing([], input_source="button")
 
-    def start_typing(self, release_keys, text=None):
+    def start_typing(self, release_keys, text=None, input_source="unknown"):
         if self.typing_thread and self.typing_thread.is_alive():
             return
         if text is None:
@@ -40,7 +40,7 @@ class TypingController:
         self.ui.set_status(self.t("status.typing"), "working")
         self.typing_thread = threading.Thread(
             target=self._typing_worker,
-            args=(text, self.input_interval_seconds(), release_keys),
+            args=(text, self.input_interval_seconds(), release_keys, input_source),
             daemon=True,
         )
         self.typing_thread.start()
@@ -54,7 +54,7 @@ class TypingController:
                 interval_ms = DEFAULT_INTERVAL_MS
         return interval_ms / 1000
 
-    def _typing_worker(self, text, interval, release_keys):
+    def _typing_worker(self, text, interval, release_keys, input_source):
         should_restore_ime = False
         try:
             should_restore_ime = maybe_toggle_ime_before_typing(self.config)
@@ -67,7 +67,9 @@ class TypingController:
                 self.typing_stop_event,
                 release_keys,
                 bool(self.config["newline_with_shift_enter"]),
+                self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD),
                 progress_callback,
+                input_source,
             )
             stopped = self.typing_stop_event.is_set()
             self.schedule_ui(lambda: self.on_typing_done(stopped))

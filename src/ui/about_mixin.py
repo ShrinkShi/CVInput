@@ -10,14 +10,13 @@ from .theme import MUTED
 class AboutMixin:
     def open_about(self):
         if self.widget_exists(self.about_window):
-            self.place_child_window_near_main(self.about_window, *self.ABOUT_SIZE)
-            self.focus_window_safely(self.about_window)
+            self.close_about()
             return
 
         self.close_settings()
         self.prune_tooltips()
         debug_log(
-            "POPUP",
+            "WINDOW_POSITION",
             "open_about",
             popup_type="about",
             target_width=self.ABOUT_SIZE[0],

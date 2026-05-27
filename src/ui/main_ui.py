@@ -27,6 +27,7 @@ class CVInputUI(
     SLOT_TEXTBOX_HEIGHT = 30
     SETTINGS_SIZE = (344, 486)
     ABOUT_SIZE = (430, 620)
+    DEVELOPER_DEBUG_SIZE = (286, 196)
 
     def __init__(self, controller, config):
         super().__init__()
@@ -34,6 +35,7 @@ class CVInputUI(
         self.config = config
         self.settings_window = None
         self.about_window = None
+        self.developer_debug_window = None
         self.tooltips = {}
         self.drag_x = 0
         self.drag_y = 0
@@ -80,7 +82,7 @@ class CVInputUI(
         try:
             self.update_idletasks()
             debug_log(
-                "WINDOW",
+                "WINDOW_POSITION",
                 "main_window_initialized",
                 geometry=self.geometry(),
                 winfo_x=self.winfo_x(),
@@ -93,7 +95,7 @@ class CVInputUI(
                 winfo_screenheight=self.winfo_screenheight(),
             )
         except Exception as exc:
-            debug_log("WINDOW", "main_window_initialized.error", error=repr(exc))
+            debug_log("WINDOW_POSITION", "main_window_initialized.error", error=repr(exc))
 
     def build_main_ui(self):
         self.main_frame = ctk.CTkFrame(

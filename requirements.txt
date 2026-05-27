@@ -3,3 +3,5 @@ pynput>=1.7.6
 customtkinter>=5.2.0
 pystray>=0.19.5
 pillow>=10.0.0
+pyautogui>=0.9.54
+keyboard>=0.13.5

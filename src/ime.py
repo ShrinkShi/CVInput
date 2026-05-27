@@ -2,6 +2,8 @@ import ctypes
 import time
 from ctypes import wintypes
 
+from .win_input import SCAN_LSHIFT, send_scan_event
+
 IME_CMODE_NATIVE = 0x0001
 VK_SHIFT = 0x10
 KEYEVENTF_KEYUP = 0x0002
@@ -43,6 +45,15 @@ def is_chinese_ime_active():
 
 
 def tap_shift():
+    try:
+        send_scan_event(SCAN_LSHIFT)
+        time.sleep(0.04)
+        send_scan_event(SCAN_LSHIFT, key_up=True)
+        time.sleep(0.08)
+        return True
+    except Exception:
+        pass
+
     try:
         user32.keybd_event(VK_SHIFT, 0, 0, 0)
         time.sleep(0.02)

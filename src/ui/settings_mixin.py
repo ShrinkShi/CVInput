@@ -1,8 +1,16 @@
-from datetime import datetime
 from tkinter import filedialog
+from datetime import datetime
 
 import customtkinter as ctk
 
+from ..constants import (
+    DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
+    NEWLINE_METHOD_KEYBOARD,
+    NEWLINE_METHOD_PYNPUT,
+    NEWLINE_METHOD_PYAUTOGUI,
+    NEWLINE_METHOD_WIN32_SCAN,
+    NEWLINE_METHOD_WIN32_VK,
+)
 from ..debug_logger import debug_log
 from .theme import ACCENT, HOVER, MUTED, SURFACE, SURFACE_DARK, TEXT
 
@@ -10,14 +18,13 @@ from .theme import ACCENT, HOVER, MUTED, SURFACE, SURFACE_DARK, TEXT
 class SettingsMixin:
     def open_settings(self):
         if self.widget_exists(self.settings_window):
-            self.place_child_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
-            self.focus_window_safely(self.settings_window)
+            self.close_settings()
             return
 
         self.close_about()
         self.prune_tooltips()
         debug_log(
-            "POPUP",
+            "WINDOW_POSITION",
             "open_settings",
             popup_type="settings",
             target_width=self.SETTINGS_SIZE[0],
@@ -107,6 +114,37 @@ class SettingsMixin:
             lambda: self.controller.set_newline_with_shift_enter(bool(self.newline_switch.get())),
             "tooltip.setting.newline_with_shift_enter",
         )
+        newline_method_row = ctk.CTkFrame(content, fg_color="transparent")
+        newline_method_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(
+            newline_method_row,
+            text=self.t("label.newline_method"),
+            width=96,
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+        ).pack(side="left")
+        self.newline_method_labels = {
+            self.t("label.newline_method.pynput"): NEWLINE_METHOD_PYNPUT,
+            self.t("label.newline_method.win32_scan"): NEWLINE_METHOD_WIN32_SCAN,
+            self.t("label.newline_method.win32_vk"): NEWLINE_METHOD_WIN32_VK,
+            self.t("label.newline_method.pyautogui"): NEWLINE_METHOD_PYAUTOGUI,
+            self.t("label.newline_method.keyboard"): NEWLINE_METHOD_KEYBOARD,
+        }
+        self.newline_method_menu = ctk.CTkOptionMenu(
+            newline_method_row,
+            values=list(self.newline_method_labels.keys()),
+            height=26,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            font=("Segoe UI", 10),
+            command=self.on_newline_method_selected,
+        )
+        self.newline_method_menu.pack(side="left", fill="x", expand=True)
+        self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
+        self.add_tooltip(self.newline_method_menu, "tooltip.setting.newline_method")
         self.multi_slot_switch = self.setting_switch(
             content,
             "label.multi_slot_enabled",
@@ -142,26 +180,13 @@ class SettingsMixin:
             lambda: self.controller.set_close_popup_on_blur(bool(self.close_popup_on_blur_switch.get())),
             "tooltip.setting.close_popup_on_blur",
         )
-        self.debug_switch = self.setting_switch(
+        self.developer_switch = self.setting_switch(
             content,
-            "label.debug_mode",
-            self.config.get("debug_mode", False),
-            lambda: self.controller.set_debug_mode(bool(self.debug_switch.get())),
-            "tooltip.setting.debug_mode",
+            "label.developer_mode",
+            self.config.get("developer_mode", False),
+            lambda: self.controller.set_developer_mode(bool(self.developer_switch.get())),
+            "tooltip.setting.developer_mode",
         )
-        export_debug_button = ctk.CTkButton(
-            content,
-            text=self.t("label.export_debug_log"),
-            height=26,
-            corner_radius=7,
-            fg_color="#242a33",
-            hover_color=HOVER,
-            text_color=TEXT,
-            font=("Segoe UI", 10),
-            command=self.export_debug_log_from_settings,
-        )
-        export_debug_button.pack(anchor="w", pady=(7, 3))
-        self.add_tooltip(export_debug_button, "tooltip.export_debug_log")
 
         opacity_row = ctk.CTkFrame(content, fg_color="transparent")
         opacity_row.pack(fill="x", pady=(7, 3))
@@ -216,9 +241,11 @@ class SettingsMixin:
         self.settings_status.pack(fill="x", padx=14, pady=(0, 10))
         self.place_child_window_near_main(win, *self.SETTINGS_SIZE)
         self.register_child_popup(win, self.close_settings)
+        self.after(40, self.refresh_developer_debug_visibility)
         self.after(20, lambda target=win: self.focus_window_safely(target))
 
     def close_settings(self):
+        self.close_developer_debug()
         win = self.settings_window
         self.settings_window = None
         self.hide_tooltips_for_window(win)
@@ -255,9 +282,112 @@ class SettingsMixin:
         if path:
             self.controller.export_debug_log(path)
 
+    def open_developer_debug(self):
+        if not self.widget_exists(self.settings_window):
+            return
+        if self.widget_exists(getattr(self, "developer_debug_window", None)):
+            self.place_developer_debug_window()
+            self.focus_window_safely(self.developer_debug_window)
+            return
+
+        win = ctk.CTkToplevel(self)
+        self.developer_debug_window = win
+        self.prepare_popup(win, *self.DEVELOPER_DEBUG_SIZE)
+        frame = self.popup_frame(win)
+        self.popup_header(frame, "label.developer_debug", self.close_developer_debug)
+
+        content = ctk.CTkFrame(frame, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=14, pady=(2, 8))
+
+        self.debug_window_position_switch = self.setting_switch(
+            content,
+            "label.debug_window_position",
+            self.config.get("debug_window_position", False),
+            lambda: self.controller.set_debug_window_position(bool(self.debug_window_position_switch.get())),
+            "tooltip.setting.debug_window_position",
+        )
+        self.debug_newline_behavior_switch = self.setting_switch(
+            content,
+            "label.debug_newline_behavior",
+            self.config.get("debug_newline_behavior", False),
+            lambda: self.controller.set_debug_newline_behavior(bool(self.debug_newline_behavior_switch.get())),
+            "tooltip.setting.debug_newline_behavior",
+        )
+
+        button_row = ctk.CTkFrame(content, fg_color="transparent")
+        button_row.pack(fill="x", pady=(9, 5))
+        export_button = ctk.CTkButton(
+            button_row,
+            text=self.t("label.export_debug_log"),
+            height=26,
+            corner_radius=7,
+            fg_color="#242a33",
+            hover_color=HOVER,
+            text_color=TEXT,
+            font=("Segoe UI", 10),
+            command=self.export_debug_log_from_settings,
+        )
+        export_button.pack(side="left")
+        self.add_tooltip(export_button, "tooltip.export_debug_log")
+
+        clear_button = ctk.CTkButton(
+            button_row,
+            text=self.t("label.clear_debug_log"),
+            height=26,
+            corner_radius=7,
+            fg_color="#242a33",
+            hover_color=HOVER,
+            text_color=TEXT,
+            font=("Segoe UI", 10),
+            command=self.controller.clear_debug_log_from_settings,
+        )
+        clear_button.pack(side="left", padx=(8, 0))
+        self.add_tooltip(clear_button, "tooltip.clear_debug_log")
+
+        self.developer_log_count_label = ctk.CTkLabel(
+            content,
+            text="",
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color=MUTED,
+        )
+        self.developer_log_count_label.pack(fill="x", pady=(4, 0))
+        self.update_developer_log_count()
+
+        self.place_developer_debug_window()
+        self.register_child_popup(win, self.close_developer_debug)
+        self.after(20, lambda target=win: self.focus_window_safely(target))
+
+    def close_developer_debug(self):
+        win = getattr(self, "developer_debug_window", None)
+        self.developer_debug_window = None
+        self.hide_tooltips_for_window(win)
+        if win is not None:
+            self.forget_child_popup(win)
+        try:
+            if self.widget_exists(win):
+                win.destroy()
+        except Exception:
+            pass
+
+    def refresh_developer_debug_visibility(self):
+        if self.config.get("developer_mode", False) and self.widget_exists(self.settings_window):
+            self.open_developer_debug()
+        else:
+            self.close_developer_debug()
+
+    def update_developer_log_count(self):
+        if self.widget_exists(getattr(self, "developer_log_count_label", None)):
+            count = self.controller.debug_log_count()
+            self.developer_log_count_label.configure(text=self.t("label.debug_log_count", count=count))
+
     def on_language_selected(self, label):
         language = self.language_codes.get(label, "zh_cn")
         self.controller.set_language(language)
+
+    def on_newline_method_selected(self, label):
+        method = self.newline_method_labels.get(label, DEFAULT_NEWLINE_SHIFT_ENTER_METHOD)
+        self.controller.set_newline_shift_enter_method(method)
 
     def set_disable_empty_switch(self, enabled):
         if self.widget_exists(getattr(self, "disable_empty_switch", None)):
@@ -271,6 +401,17 @@ class SettingsMixin:
         if self.widget_exists(getattr(self, "newline_switch", None)):
             self.newline_switch.select() if enabled else self.newline_switch.deselect()
 
+    def set_newline_method_value(self, method):
+        if not self.widget_exists(getattr(self, "newline_method_menu", None)):
+            return
+        labels = getattr(self, "newline_method_labels", {})
+        label = next((text for text, value in labels.items() if value == method), None)
+        default_label = next(
+            (text for text, value in labels.items() if value == DEFAULT_NEWLINE_SHIFT_ENTER_METHOD),
+            self.t("label.newline_method.pyautogui"),
+        )
+        self.newline_method_menu.set(label or default_label)
+
     def set_custom_interval_switch(self, enabled):
         if self.widget_exists(getattr(self, "custom_interval_switch", None)):
             self.custom_interval_switch.select() if enabled else self.custom_interval_switch.deselect()
@@ -283,9 +424,17 @@ class SettingsMixin:
         if self.widget_exists(getattr(self, "close_popup_on_blur_switch", None)):
             self.close_popup_on_blur_switch.select() if enabled else self.close_popup_on_blur_switch.deselect()
 
-    def set_debug_switch(self, enabled):
-        if self.widget_exists(getattr(self, "debug_switch", None)):
-            self.debug_switch.select() if enabled else self.debug_switch.deselect()
+    def set_developer_switch(self, enabled):
+        if self.widget_exists(getattr(self, "developer_switch", None)):
+            self.developer_switch.select() if enabled else self.developer_switch.deselect()
+
+    def set_debug_window_position_switch(self, enabled):
+        if self.widget_exists(getattr(self, "debug_window_position_switch", None)):
+            self.debug_window_position_switch.select() if enabled else self.debug_window_position_switch.deselect()
+
+    def set_debug_newline_behavior_switch(self, enabled):
+        if self.widget_exists(getattr(self, "debug_newline_behavior_switch", None)):
+            self.debug_newline_behavior_switch.select() if enabled else self.debug_newline_behavior_switch.deselect()
 
     def set_interval_controls_visible(self, enabled):
         if not self.widget_exists(getattr(self, "interval_row", None)):
@@ -316,6 +465,7 @@ class SettingsMixin:
         self.set_disable_empty_switch(bool(self.config["disable_hotkey_when_clipboard_empty"]))
         self.set_ime_switch(bool(self.config["toggle_ime_with_shift"]))
         self.set_newline_switch(bool(self.config["newline_with_shift_enter"]))
+        self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
         self.set_custom_interval_switch(bool(self.config["custom_interval_enabled"]))
         self.set_interval_controls_visible(bool(self.config["custom_interval_enabled"]))
         self.set_multi_slot_visible(bool(self.config["multi_slot_enabled"]))
@@ -323,7 +473,10 @@ class SettingsMixin:
         self.set_startup_switch(bool(self.config["startup_on_boot"]))
         self.set_remember_settings_switch(bool(self.config["remember_settings"]))
         self.set_close_popup_on_blur_switch(bool(self.config["close_popup_on_blur"]))
-        self.set_debug_switch(bool(self.config.get("debug_mode", False)))
+        self.set_developer_switch(bool(self.config.get("developer_mode", False)))
+        self.set_debug_window_position_switch(bool(self.config.get("debug_window_position", False)))
+        self.set_debug_newline_behavior_switch(bool(self.config.get("debug_newline_behavior", False)))
+        self.refresh_developer_debug_visibility()
         self.set_hotkeys_switch(bool(self.config.get("hotkeys_enabled", True)))
         self.set_topmost_value(bool(self.config["always_on_top"]))
         self.set_opacity_value(float(self.config["opacity"]))

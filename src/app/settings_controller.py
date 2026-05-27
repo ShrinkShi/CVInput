@@ -3,8 +3,16 @@ import webbrowser
 
 import pyperclip
 
-from ..constants import DEFAULT_CONFIG
-from ..debug_logger import export_debug_log, set_debug_enabled
+from ..constants import DEFAULT_CONFIG, NEWLINE_METHOD_VERSION, NEWLINE_METHODS
+from ..debug_logger import (
+    CATEGORY_NEWLINE_BEHAVIOR,
+    CATEGORY_WINDOW_POSITION,
+    clear_debug_log,
+    export_debug_log,
+    get_debug_log_count,
+    set_category_enabled,
+    set_developer_mode,
+)
 
 
 GITHUB_URL = "https://github.com/ShrinkShi/CVInput"
@@ -41,6 +49,15 @@ class SettingsController:
         self.ui.set_newline_switch(bool(enabled))
         self.save_config()
 
+    def set_newline_shift_enter_method(self, method):
+        if method not in NEWLINE_METHODS:
+            return
+        self.config["newline_shift_enter_method"] = method
+        self.config["newline_shift_enter_method_version"] = NEWLINE_METHOD_VERSION
+        self.ui.set_newline_method_value(method)
+        self.save_config()
+        self.ui.set_status(self.t("status.newline_method_updated"), "ready")
+
     def set_custom_interval_enabled(self, enabled):
         self.config["custom_interval_enabled"] = bool(enabled)
         self.ui.set_custom_interval_switch(bool(enabled))
@@ -58,15 +75,30 @@ class SettingsController:
         self.ui.refresh_popup_blur_behavior()
         self.save_config()
 
-    def set_debug_mode(self, enabled):
-        self.config["debug_mode"] = bool(enabled)
-        set_debug_enabled(bool(enabled))
-        self.ui.set_debug_switch(bool(enabled))
+    def set_developer_mode(self, enabled):
+        self.config["developer_mode"] = bool(enabled)
+        set_developer_mode(bool(enabled))
+        self.ui.set_developer_switch(bool(enabled))
+        self.ui.refresh_developer_debug_visibility()
         self.save_config()
         self.ui.set_status(
-            self.t("status.debug_mode_on") if enabled else self.t("status.debug_mode_off"),
+            self.t("status.developer_mode_on") if enabled else self.t("status.developer_mode_off"),
             "ready",
         )
+
+    def set_debug_window_position(self, enabled):
+        self.config["debug_window_position"] = bool(enabled)
+        set_category_enabled(CATEGORY_WINDOW_POSITION, bool(enabled))
+        self.ui.set_debug_window_position_switch(bool(enabled))
+        self.save_config()
+        self.ui.update_developer_log_count()
+
+    def set_debug_newline_behavior(self, enabled):
+        self.config["debug_newline_behavior"] = bool(enabled)
+        set_category_enabled(CATEGORY_NEWLINE_BEHAVIOR, bool(enabled))
+        self.ui.set_debug_newline_behavior_switch(bool(enabled))
+        self.save_config()
+        self.ui.update_developer_log_count()
 
     def export_debug_log(self, path):
         try:
@@ -75,6 +107,14 @@ class SettingsController:
             self.ui.set_status(self.t("status.debug_log_export_failed", error=e), "error")
             return
         self.ui.set_status(self.t("status.debug_log_exported"), "ready")
+
+    def clear_debug_log_from_settings(self):
+        clear_debug_log()
+        self.ui.update_developer_log_count()
+        self.ui.set_status(self.t("status.debug_log_cleared"), "ready")
+
+    def debug_log_count(self):
+        return get_debug_log_count()
 
     def set_multi_slot_enabled(self, enabled):
         self.config["multi_slot_enabled"] = bool(enabled)
@@ -141,7 +181,9 @@ class SettingsController:
         if old_startup and not defaults["startup_on_boot"]:
             self.startup_manager.set_enabled(False)
         self.clipboard_monitor.set_enabled(bool(self.config["auto_clipboard"]))
-        set_debug_enabled(bool(self.config.get("debug_mode", False)))
+        set_developer_mode(bool(self.config.get("developer_mode", False)))
+        set_category_enabled(CATEGORY_WINDOW_POSITION, bool(self.config.get("debug_window_position", False)))
+        set_category_enabled(CATEGORY_NEWLINE_BEHAVIOR, bool(self.config.get("debug_newline_behavior", False)))
         self.translator.set_language(self.config["language"])
         self.ensure_multi_slots()
         self.ui.sync_config_controls()

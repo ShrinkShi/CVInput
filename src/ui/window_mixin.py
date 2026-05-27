@@ -83,15 +83,19 @@ class WindowMixin:
         self.place_child_window_near_main(win, width, height)
 
     def _apply_child_left_geometry(self, child, width=None, height=None):
+        return self._apply_window_left_geometry(self, child, width, height)
+
+    def _apply_window_left_geometry(self, parent, child, width=None, height=None):
         self.update_idletasks()
+        parent.update_idletasks()
         child.update_idletasks()
         before_geometry = child.geometry()
         child_w = coerce_window_size(width, child.winfo_width() or child.winfo_reqwidth())
         child_h = coerce_window_size(height, child.winfo_height() or child.winfo_reqheight())
-        child_x, child_y = left_attached_geometry(self, child_w, child_h)
+        child_x, child_y = left_attached_geometry(parent, child_w, child_h)
         target_geometry = f"{child_w}x{child_h}+{child_x}+{child_y}"
         debug_log(
-            "POPUP",
+            "WINDOW_POSITION",
             "apply_child_left_geometry.before",
             child_state=child.state(),
             child_geometry=before_geometry,
@@ -100,7 +104,7 @@ class WindowMixin:
         child.geometry(target_geometry)
         child.update_idletasks()
         debug_log(
-            "POPUP",
+            "WINDOW_POSITION",
             "apply_child_left_geometry.after",
             child_state=child.state(),
             child_geometry=child.geometry(),
@@ -161,6 +165,48 @@ class WindowMixin:
             self.place_child_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
         if self.widget_exists(self.about_window):
             self.place_child_window_near_main(self.about_window, *self.ABOUT_SIZE)
+        if self.widget_exists(getattr(self, "developer_debug_window", None)):
+            self.place_developer_debug_window()
+
+    def place_developer_debug_window(self):
+        if not self.widget_exists(getattr(self, "developer_debug_window", None)):
+            return
+        parent = self.settings_window if self.widget_exists(self.settings_window) else self
+        try:
+            is_first_show = self.developer_debug_window.state() == "withdrawn"
+            if is_first_show:
+                self.show_child_popup_left_of(parent, self.developer_debug_window, *self.DEVELOPER_DEBUG_SIZE)
+                return
+            self._apply_window_left_geometry(parent, self.developer_debug_window, *self.DEVELOPER_DEBUG_SIZE)
+            self.developer_debug_window.attributes("-alpha", float(self.config["opacity"]))
+        except tk.TclError:
+            pass
+
+    def show_child_popup_left_of(self, parent, child, width=None, height=None):
+        if not self.widget_exists(child):
+            return
+        try:
+            child.attributes("-alpha", 0.0)
+            self._apply_window_left_geometry(parent, child, width, height)
+            if child.state() == "withdrawn":
+                child.deiconify()
+                child.update_idletasks()
+            self._apply_window_left_geometry(parent, child, width, height)
+            self.after(20, lambda source=parent, target=child, w=width, h=height: self.finish_child_show_left_of(source, target, w, h))
+        except tk.TclError:
+            pass
+
+    def finish_child_show_left_of(self, parent, child, width=None, height=None):
+        if not self.widget_exists(parent) or not self.widget_exists(child):
+            return
+        try:
+            self._apply_window_left_geometry(parent, child, width, height)
+            child._cvinput_popup_ready = True
+            child.lift()
+            child.focus_force()
+            child.attributes("-alpha", float(self.config["opacity"]))
+        except tk.TclError:
+            pass
 
     def place_settings_window_near_main(self, win, width, height):
         self.place_child_window_near_main(win, width, height)
@@ -204,6 +250,10 @@ class WindowMixin:
         except tk.TclError:
             focused = None
         if focused is not None and self.widget_belongs_to_window(focused, win):
+            return
+        if focused is not None and any(
+            self.widget_belongs_to_window(focused, popup) for popup, _closer in self.child_popups if self.widget_exists(popup)
+        ):
             return
         close_command()
 
@@ -262,6 +312,8 @@ class WindowMixin:
             self.outside_click_binding = None
 
     def dispose_transients(self):
+        if hasattr(self, "close_developer_debug"):
+            self.close_developer_debug()
         self.close_settings()
         self.close_about()
         for _button, (_key, tooltip) in list(self.tooltips.items()):
@@ -289,5 +341,7 @@ class WindowMixin:
             return
         try:
             win.geometry(f"+{event.x_root - self.popup_drag_x}+{event.y_root - self.popup_drag_y}")
+            if win is getattr(self, "settings_window", None):
+                self.place_developer_debug_window()
         except tk.TclError:
             pass
