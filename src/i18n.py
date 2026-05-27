@@ -160,7 +160,7 @@ class Translator:
     def _locale_path(self, language):
         if getattr(sys, "frozen", False):
             base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-            packed = base / "cvinput" / "locales" / f"{language}.json"
+            packed = base / "src" / "locales" / f"{language}.json"
             if packed.exists():
                 return packed
         return Path(__file__).resolve().parent / "locales" / f"{language}.json"

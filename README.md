@@ -35,10 +35,10 @@ python main.py
 ## 打包方式
 
 ```bash
-python -m PyInstaller --onefile --windowed --name CVI --icon assets/icon.ico --add-data "cvinput/locales;cvinput/locales" --add-data "assets;assets" main.py
+python -m PyInstaller --onefile --windowed --name CVInput --icon assets/icon.ico --add-data "src/locales;src/locales" --add-data "assets;assets" main.py
 ```
 
-打包产物会生成到 `dist/`，构建缓存会生成到 `build/`。`--add-data "assets;assets"` 用于包含标题栏的 `set.png`、`about.png` 等运行时图标；仓库中的 `CVInput.spec` 也已包含该资源目录。这些构建目录不应提交到仓库。
+打包产物会生成到 `dist/`，构建缓存会生成到 `build/`。`--add-data "src/locales;src/locales"` 用于包含语言文件，`--add-data "assets;assets"` 用于包含标题栏的 `set.png`、`about.png` 等运行时图标。这些构建目录不应提交到仓库。
 
 ## 快捷键
 
@@ -130,8 +130,8 @@ HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
 设置中可以在中文和英文之间切换。语言文件位于：
 
 ```text
-cvinput/locales/zh_cn.json
-cvinput/locales/en_us.json
+src/locales/zh_cn.json
+src/locales/en_us.json
 ```
 
 缺失语言 key 时会回退到中文默认值或 key 本身，不会导致程序崩溃。
@@ -163,19 +163,39 @@ Windows 有权限隔离机制：普通权限运行的程序通常不能向管理
 ```text
 CVInput/
 ├─ main.py
-├─ cvinput/
+├─ src/
 │  ├─ __init__.py
-│  ├─ app.py
-│  ├─ ui_ctk.py
+│  ├─ constants.py
+│  ├─ config.py
 │  ├─ hotkey.py
 │  ├─ clipboard.py
 │  ├─ typing_engine.py
 │  ├─ ime.py
-│  ├─ config.py
-│  ├─ constants.py
-│  ├─ i18n.py
-│  ├─ tray.py
 │  ├─ startup.py
+│  ├─ tray.py
+│  ├─ i18n.py
+│  ├─ app/
+│  │  ├─ app.py
+│  │  ├─ lifecycle.py
+│  │  ├─ hotkey_controller.py
+│  │  ├─ clipboard_controller.py
+│  │  ├─ typing_controller.py
+│  │  ├─ settings_controller.py
+│  │  └─ tray_controller.py
+│  ├─ ui/
+│  │  ├─ main_ui.py
+│  │  ├─ main_manager.py
+│  │  ├─ theme.py
+│  │  ├─ assets.py
+│  │  ├─ tooltip.py
+│  │  ├─ window_utils.py
+│  │  ├─ widgets.py
+│  │  ├─ settings_ui.py
+│  │  ├─ settings_manager.py
+│  │  ├─ about_ui.py
+│  │  ├─ about_manager.py
+│  │  ├─ slot_ui.py
+│  │  └─ slot_manager.py
 │  └─ locales/
 │     ├─ zh_cn.json
 │     └─ en_us.json
@@ -188,16 +208,22 @@ CVInput/
 职责说明：
 
 - `main.py`：程序入口，只创建并启动 `CVInputApp`。
-- `cvinput/app.py`：组合 UI、快捷键、剪贴板、输入引擎、托盘和配置，负责生命周期。
-- `cvinput/ui_ctk.py`：customtkinter 无边框主界面、设置弹窗和集成使用说明的关于弹窗。
-- `cvinput/hotkey.py`：Windows `RegisterHotKey` 多热键监听。
-- `cvinput/clipboard.py`：`pyperclip` 剪贴板轮询。
-- `cvinput/typing_engine.py`：`pynput` 逐字符模拟输入。
-- `cvinput/ime.py`：Windows 输入法状态尽力检测与 Shift 切换保护。
-- `cvinput/config.py`：JSON 配置读写。
-- `cvinput/i18n.py`：语言文件加载与 fallback。
-- `cvinput/tray.py`：系统托盘图标与菜单。
-- `cvinput/startup.py`：Windows Run 项开机自启。
+- `src/app/app.py`：组合 UI、快捷键、剪贴板、输入引擎、托盘和配置，保持主协调类尽量薄。
+- `src/app/*_controller.py`：按热键、剪贴板、输入、设置、托盘和生命周期拆分应用协调逻辑。
+- `src/ui/main_ui.py`：customtkinter 无边框主界面与当前窗口 UI 组合入口。
+- `src/ui/tooltip.py`：Tooltip 生命周期和安全销毁。
+- `src/ui/theme.py`：UI 颜色、主题常量。
+- `src/ui/assets.py`：PyInstaller 兼容资源路径。
+- `src/ui/window_utils.py`：窗口存在性检查等通用工具。
+- `src/ui/settings_ui.py`、`src/ui/about_ui.py`、`src/ui/slot_ui.py`：设置、关于、多槽位 UI 的后续精细拆分入口。
+- `src/hotkey.py`：Windows `RegisterHotKey` 多热键监听。
+- `src/clipboard.py`：`pyperclip` 剪贴板轮询。
+- `src/typing_engine.py`：`pynput` 逐字符模拟输入。
+- `src/ime.py`：Windows 输入法状态尽力检测与 Shift 切换保护。
+- `src/config.py`：JSON 配置读写。
+- `src/i18n.py`：语言文件加载与 fallback。
+- `src/tray.py`：系统托盘图标与菜单。
+- `src/startup.py`：Windows Run 项开机自启。
 
 ## 使用建议
 

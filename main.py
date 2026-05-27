@@ -1,4 +1,4 @@
-from cvinput.app import CVInputApp
+from src.app import CVInputApp
 
 
 def main():
