@@ -3,6 +3,7 @@ import tkinter as tk
 import customtkinter as ctk
 
 from ..constants import APP_VERSION
+from ..debug_logger import debug_log
 from .theme import MUTED
 
 
@@ -15,6 +16,13 @@ class AboutMixin:
 
         self.close_settings()
         self.prune_tooltips()
+        debug_log(
+            "POPUP",
+            "open_about",
+            popup_type="about",
+            target_width=self.ABOUT_SIZE[0],
+            target_height=self.ABOUT_SIZE[1],
+        )
         win = ctk.CTkToplevel(self)
         self.about_window = win
         self.prepare_popup(win, *self.ABOUT_SIZE)

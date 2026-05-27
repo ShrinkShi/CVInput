@@ -3,7 +3,8 @@ import tkinter as tk
 import customtkinter as ctk
 
 from .theme import BORDER, SURFACE, TEXT, TRANSPARENT_KEY
-from .window_utils import widget_exists
+from ..debug_logger import debug_log
+from .window_utils import coerce_window_size, left_attached_geometry, widget_exists
 
 
 class WindowMixin:
@@ -23,18 +24,26 @@ class WindowMixin:
         if not self.widget_exists(win):
             return
         try:
+            if not getattr(win, "_cvinput_popup_ready", True):
+                return
+            if win.state() == "withdrawn":
+                return
             win.lift()
             win.focus_force()
         except tk.TclError:
             pass
 
     def prepare_popup(self, win, width, height):
+        win._cvinput_popup_ready = False
+        win.withdraw()
         win.overrideredirect(True)
         win.resizable(False, False)
+        win.minsize(width, height)
+        win.maxsize(width, height)
         win.attributes("-topmost", bool(self.config["always_on_top"]))
-        win.attributes("-alpha", float(self.config["opacity"]))
+        win.attributes("-alpha", 0.0)
         self.apply_transparent_background(win)
-        win.geometry(f"{width}x{height}")
+        win.geometry(f"{width}x{height}+0+0")
 
     def popup_frame(self, win):
         frame = ctk.CTkFrame(win, fg_color=SURFACE, corner_radius=12, border_width=1, border_color=BORDER)
@@ -73,30 +82,74 @@ class WindowMixin:
     def position_popup(self, win, width, height):
         self.place_child_window_near_main(win, width, height)
 
+    def _apply_child_left_geometry(self, child, width=None, height=None):
+        self.update_idletasks()
+        child.update_idletasks()
+        before_geometry = child.geometry()
+        child_w = coerce_window_size(width, child.winfo_width() or child.winfo_reqwidth())
+        child_h = coerce_window_size(height, child.winfo_height() or child.winfo_reqheight())
+        child_x, child_y = left_attached_geometry(self, child_w, child_h)
+        target_geometry = f"{child_w}x{child_h}+{child_x}+{child_y}"
+        debug_log(
+            "POPUP",
+            "apply_child_left_geometry.before",
+            child_state=child.state(),
+            child_geometry=before_geometry,
+            target_geometry=target_geometry,
+        )
+        child.geometry(target_geometry)
+        child.update_idletasks()
+        debug_log(
+            "POPUP",
+            "apply_child_left_geometry.after",
+            child_state=child.state(),
+            child_geometry=child.geometry(),
+            child_winfo_x=child.winfo_x(),
+            child_winfo_y=child.winfo_y(),
+            child_winfo_rootx=child.winfo_rootx(),
+            child_winfo_rooty=child.winfo_rooty(),
+        )
+        return child_w, child_h, target_geometry
+
     def place_child_left_of_main(self, child, width=None, height=None):
         if not self.widget_exists(child):
             return
         try:
-            self.update_idletasks()
-            child.update_idletasks()
-            main_x = self.winfo_rootx()
-            main_y = self.winfo_rooty()
-            main_w = self.winfo_width() or self.WIDTH
-            child_w = width or child.winfo_width() or child.winfo_reqwidth()
-            child_h = height or child.winfo_height() or child.winfo_reqheight()
-            gap = 10
-            child_x = main_x - child_w - gap
-            child_y = main_y
+            is_first_show = child.state() == "withdrawn"
+            if is_first_show:
+                self.show_child_popup(child, width, height)
+                return
+            self._apply_child_left_geometry(child, width, height)
+            child.attributes("-alpha", float(self.config["opacity"]))
+        except tk.TclError:
+            pass
 
-            if child_x < 0:
-                child_x = main_x + main_w + gap
+    def show_child_popup(self, child, width=None, height=None):
+        if not self.widget_exists(child):
+            return
+        try:
+            child.attributes("-alpha", 0.0)
+            self._apply_child_left_geometry(child, width, height)
+            if child.state() == "withdrawn":
+                child.deiconify()
+                child.update_idletasks()
 
-            screen_w = self.winfo_screenwidth()
-            screen_h = self.winfo_screenheight()
-            child_x = max(0, min(child_x, screen_w - child_w))
-            child_y = max(0, min(child_y, screen_h - child_h))
+            # Withdrawn Toplevels can report 133x133 on Windows/CTk until mapped.
+            # Re-apply after mapping, then reveal on the next event-loop turn.
+            self._apply_child_left_geometry(child, width, height)
+            self.after(20, lambda target=child, w=width, h=height: self.finish_first_child_show(target, w, h))
+        except tk.TclError:
+            pass
 
-            child.geometry(f"{child_w}x{child_h}+{child_x}+{child_y}")
+    def finish_first_child_show(self, child, width=None, height=None):
+        if not self.widget_exists(child):
+            return
+        try:
+            self._apply_child_left_geometry(child, width, height)
+            child._cvinput_popup_ready = True
+            child.lift()
+            child.focus_force()
+            child.attributes("-alpha", float(self.config["opacity"]))
         except tk.TclError:
             pass
 

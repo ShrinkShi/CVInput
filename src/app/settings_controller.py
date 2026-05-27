@@ -4,6 +4,7 @@ import webbrowser
 import pyperclip
 
 from ..constants import DEFAULT_CONFIG
+from ..debug_logger import export_debug_log, set_debug_enabled
 
 
 GITHUB_URL = "https://github.com/ShrinkShi/CVInput"
@@ -56,6 +57,24 @@ class SettingsController:
         self.ui.set_close_popup_on_blur_switch(bool(enabled))
         self.ui.refresh_popup_blur_behavior()
         self.save_config()
+
+    def set_debug_mode(self, enabled):
+        self.config["debug_mode"] = bool(enabled)
+        set_debug_enabled(bool(enabled))
+        self.ui.set_debug_switch(bool(enabled))
+        self.save_config()
+        self.ui.set_status(
+            self.t("status.debug_mode_on") if enabled else self.t("status.debug_mode_off"),
+            "ready",
+        )
+
+    def export_debug_log(self, path):
+        try:
+            export_debug_log(path, empty_text=self.t("status.debug_log_empty"))
+        except Exception as e:
+            self.ui.set_status(self.t("status.debug_log_export_failed", error=e), "error")
+            return
+        self.ui.set_status(self.t("status.debug_log_exported"), "ready")
 
     def set_multi_slot_enabled(self, enabled):
         self.config["multi_slot_enabled"] = bool(enabled)
@@ -122,6 +141,7 @@ class SettingsController:
         if old_startup and not defaults["startup_on_boot"]:
             self.startup_manager.set_enabled(False)
         self.clipboard_monitor.set_enabled(bool(self.config["auto_clipboard"]))
+        set_debug_enabled(bool(self.config.get("debug_mode", False)))
         self.translator.set_language(self.config["language"])
         self.ensure_multi_slots()
         self.ui.sync_config_controls()

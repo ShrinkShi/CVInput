@@ -1,5 +1,6 @@
 import tkinter as tk
 
+from ..debug_logger import debug_log
 from .theme import MUTED
 
 
@@ -23,11 +24,42 @@ class MainManagerMixin:
                 self.after(10, self.open_about)
 
     def start_drag(self, event):
+        self._debug_drag_printed = False
         self.drag_x = event.x_root - self.winfo_x()
         self.drag_y = event.y_root - self.winfo_y()
+        debug_log(
+            "WINDOW",
+            "start_drag",
+            event_x_root=event.x_root,
+            event_y_root=event.y_root,
+            pointer_x=self.winfo_pointerx(),
+            pointer_y=self.winfo_pointery(),
+            winfo_x=self.winfo_x(),
+            winfo_y=self.winfo_y(),
+            geometry=self.geometry(),
+            new_x=event.x_root - self.drag_x,
+            new_y=event.y_root - self.drag_y,
+        )
 
     def drag_window(self, event):
-        self.geometry(f"+{event.x_root - self.drag_x}+{event.y_root - self.drag_y}")
+        new_x = event.x_root - self.drag_x
+        new_y = event.y_root - self.drag_y
+        if not getattr(self, "_debug_drag_printed", False):
+            debug_log(
+                "WINDOW",
+                "drag_window",
+                event_x_root=event.x_root,
+                event_y_root=event.y_root,
+                pointer_x=self.winfo_pointerx(),
+                pointer_y=self.winfo_pointery(),
+                winfo_x=self.winfo_x(),
+                winfo_y=self.winfo_y(),
+                geometry=self.geometry(),
+                new_x=new_x,
+                new_y=new_y,
+            )
+            self._debug_drag_printed = True
+        self.geometry(f"+{new_x}+{new_y}")
         self.update_child_windows_position()
 
     def minimize_window(self):

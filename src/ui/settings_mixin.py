@@ -1,5 +1,9 @@
+from datetime import datetime
+from tkinter import filedialog
+
 import customtkinter as ctk
 
+from ..debug_logger import debug_log
 from .theme import ACCENT, HOVER, MUTED, SURFACE, SURFACE_DARK, TEXT
 
 
@@ -12,6 +16,13 @@ class SettingsMixin:
 
         self.close_about()
         self.prune_tooltips()
+        debug_log(
+            "POPUP",
+            "open_settings",
+            popup_type="settings",
+            target_width=self.SETTINGS_SIZE[0],
+            target_height=self.SETTINGS_SIZE[1],
+        )
         win = ctk.CTkToplevel(self)
         self.settings_window = win
         self.prepare_popup(win, *self.SETTINGS_SIZE)
@@ -131,6 +142,26 @@ class SettingsMixin:
             lambda: self.controller.set_close_popup_on_blur(bool(self.close_popup_on_blur_switch.get())),
             "tooltip.setting.close_popup_on_blur",
         )
+        self.debug_switch = self.setting_switch(
+            content,
+            "label.debug_mode",
+            self.config.get("debug_mode", False),
+            lambda: self.controller.set_debug_mode(bool(self.debug_switch.get())),
+            "tooltip.setting.debug_mode",
+        )
+        export_debug_button = ctk.CTkButton(
+            content,
+            text=self.t("label.export_debug_log"),
+            height=26,
+            corner_radius=7,
+            fg_color="#242a33",
+            hover_color=HOVER,
+            text_color=TEXT,
+            font=("Segoe UI", 10),
+            command=self.export_debug_log_from_settings,
+        )
+        export_debug_button.pack(anchor="w", pady=(7, 3))
+        self.add_tooltip(export_debug_button, "tooltip.export_debug_log")
 
         opacity_row = ctk.CTkFrame(content, fg_color="transparent")
         opacity_row.pack(fill="x", pady=(7, 3))
@@ -211,6 +242,19 @@ class SettingsMixin:
     def apply_interval_from_settings(self):
         self.controller.apply_settings_interval(self.interval_entry.get().strip())
 
+    def export_debug_log_from_settings(self):
+        initialfile = f"CVInput-debug-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
+        parent = self.settings_window if self.widget_exists(self.settings_window) else self
+        path = filedialog.asksaveasfilename(
+            parent=parent,
+            title=self.t("label.export_debug_log"),
+            defaultextension=".txt",
+            initialfile=initialfile,
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+        )
+        if path:
+            self.controller.export_debug_log(path)
+
     def on_language_selected(self, label):
         language = self.language_codes.get(label, "zh_cn")
         self.controller.set_language(language)
@@ -238,6 +282,10 @@ class SettingsMixin:
     def set_close_popup_on_blur_switch(self, enabled):
         if self.widget_exists(getattr(self, "close_popup_on_blur_switch", None)):
             self.close_popup_on_blur_switch.select() if enabled else self.close_popup_on_blur_switch.deselect()
+
+    def set_debug_switch(self, enabled):
+        if self.widget_exists(getattr(self, "debug_switch", None)):
+            self.debug_switch.select() if enabled else self.debug_switch.deselect()
 
     def set_interval_controls_visible(self, enabled):
         if not self.widget_exists(getattr(self, "interval_row", None)):
@@ -275,6 +323,7 @@ class SettingsMixin:
         self.set_startup_switch(bool(self.config["startup_on_boot"]))
         self.set_remember_settings_switch(bool(self.config["remember_settings"]))
         self.set_close_popup_on_blur_switch(bool(self.config["close_popup_on_blur"]))
+        self.set_debug_switch(bool(self.config.get("debug_mode", False)))
         self.set_hotkeys_switch(bool(self.config.get("hotkeys_enabled", True)))
         self.set_topmost_value(bool(self.config["always_on_top"]))
         self.set_opacity_value(float(self.config["opacity"]))

@@ -3,6 +3,7 @@ import threading
 from ..clipboard import ClipboardMonitor
 from ..config import ConfigStore
 from ..constants import APP_NAME
+from ..debug_logger import set_debug_enabled
 from ..hotkey import HotkeyManager
 from ..i18n import Translator
 from ..startup import StartupManager
@@ -28,6 +29,7 @@ class CVInputApp(
     def __init__(self):
         self.config_store = ConfigStore()
         self.config = self.config_store.load()
+        set_debug_enabled(bool(self.config.get("debug_mode", False)))
         self.ensure_multi_slots()
         self.translator = Translator(self.config["language"])
 

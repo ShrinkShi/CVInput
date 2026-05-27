@@ -1,6 +1,7 @@
 import customtkinter as ctk
 
 from ..constants import APP_NAME
+from ..debug_logger import debug_log
 from .about_mixin import AboutMixin
 from .main_manager import MainManagerMixin
 from .settings_mixin import SettingsMixin
@@ -70,9 +71,29 @@ class CVInputUI(
         self.build_main_ui()
         self.set_multi_slot_visible(bool(self.config["multi_slot_enabled"]))
         self.refresh_texts(rebuild_popups=False)
+        self.after_idle(self.debug_initial_window_metrics)
 
     def t(self, key, **kwargs):
         return self.controller.t(key, **kwargs)
+
+    def debug_initial_window_metrics(self):
+        try:
+            self.update_idletasks()
+            debug_log(
+                "WINDOW",
+                "main_window_initialized",
+                geometry=self.geometry(),
+                winfo_x=self.winfo_x(),
+                winfo_y=self.winfo_y(),
+                winfo_rootx=self.winfo_rootx(),
+                winfo_rooty=self.winfo_rooty(),
+                winfo_width=self.winfo_width(),
+                winfo_height=self.winfo_height(),
+                winfo_screenwidth=self.winfo_screenwidth(),
+                winfo_screenheight=self.winfo_screenheight(),
+            )
+        except Exception as exc:
+            debug_log("WINDOW", "main_window_initialized.error", error=repr(exc))
 
     def build_main_ui(self):
         self.main_frame = ctk.CTkFrame(
