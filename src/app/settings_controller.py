@@ -357,3 +357,11 @@ class SettingsController:
             self.ui.set_status(self.t("status.email_copy_failed", error=e), "error")
             return
         self.ui.set_status(self.t("status.email_copied"), "ready")
+
+    def copy_contact_text(self, text, item):
+        try:
+            pyperclip.copy(text)
+        except Exception as e:
+            self.ui.set_status(self.t("status.contact_copy_failed", error=e), "error")
+            return
+        self.ui.set_status(self.t("status.contact_copied", item=item), "ready")

@@ -25,8 +25,9 @@ class CVInputUI(
     EXPANDED_HEIGHT = 720
     SLOT_FRAME_HEIGHT = 392
     SLOT_TEXTBOX_HEIGHT = 30
-    SETTINGS_SIZE = (344, 486)
-    ABOUT_SIZE = (430, 620)
+    SETTINGS_SIZE = (344, EXPANDED_HEIGHT)
+    ABOUT_SIZE = (430, EXPANDED_HEIGHT)
+    CONTACT_SIZE = (300, 156)
     DEVELOPER_DEBUG_SIZE = (286, 236)
 
     def __init__(self, controller, config):
@@ -35,6 +36,7 @@ class CVInputUI(
         self.config = config
         self.settings_window = None
         self.about_window = None
+        self.contact_window = None
         self.developer_debug_window = None
         self.tooltips = {}
         self.drag_x = 0

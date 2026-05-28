@@ -165,6 +165,8 @@ class WindowMixin:
             self.place_child_window_near_main(self.settings_window, *self.SETTINGS_SIZE)
         if self.widget_exists(self.about_window):
             self.place_child_window_near_main(self.about_window, *self.ABOUT_SIZE)
+        if self.widget_exists(getattr(self, "contact_window", None)) and hasattr(self, "place_contact_window"):
+            self.place_contact_window()
         if self.widget_exists(getattr(self, "developer_debug_window", None)):
             self.place_developer_debug_window()
 
@@ -363,5 +365,7 @@ class WindowMixin:
             win.geometry(f"+{event.x_root - self.popup_drag_x}+{event.y_root - self.popup_drag_y}")
             if win is getattr(self, "settings_window", None):
                 self.place_developer_debug_window()
+            if win is getattr(self, "about_window", None) and hasattr(self, "place_contact_window"):
+                self.place_contact_window()
         except tk.TclError:
             pass
