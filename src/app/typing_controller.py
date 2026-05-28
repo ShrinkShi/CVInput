@@ -4,11 +4,16 @@ from ..constants import (
     DEFAULT_INTERVAL_MS,
     DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
     DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_INTERVAL_MODE,
+    DEFAULT_TYPING_TARGET_DURATION_MS,
     DEFAULT_TYPING_MODE,
     SINGLE_LINE_REPLACEMENT_TAB,
+    TYPING_INTERVAL_MODE_CUSTOM_INTERVAL,
+    TYPING_INTERVAL_MODE_TARGET_DURATION,
     TYPING_MODE_SINGLE_LINE,
     TYPING_MODE_SPLIT,
 )
+from ..debug_logger import debug_log
 from ..ime import maybe_toggle_ime_before_typing, restore_ime_after_typing
 
 
@@ -49,7 +54,7 @@ class TypingController:
         self.ui.set_status(self.t("status.typing"), "working")
         self.typing_thread = threading.Thread(
             target=self._typing_worker,
-            args=(text, self.input_interval_seconds(), release_keys, input_source),
+            args=(text, self.input_interval_seconds(text, input_source), release_keys, input_source),
             daemon=True,
         )
         self.typing_thread.start()
@@ -81,14 +86,40 @@ class TypingController:
     def current_input_mode(self):
         return self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE))
 
-    def input_interval_seconds(self):
+    def input_interval_seconds(self, text="", input_source="unknown"):
         interval_ms = DEFAULT_INTERVAL_MS
-        if self.config.get("custom_interval_enabled", False):
+        interval_mode = self.config.get("typing_interval_mode", DEFAULT_TYPING_INTERVAL_MODE)
+        if interval_mode == TYPING_INTERVAL_MODE_CUSTOM_INTERVAL:
             try:
-                interval_ms = float(self.config.get("interval_ms", DEFAULT_INTERVAL_MS))
+                interval_ms = float(self.config.get("typing_interval_ms", self.config.get("interval_ms", DEFAULT_INTERVAL_MS)))
             except (TypeError, ValueError):
                 interval_ms = DEFAULT_INTERVAL_MS
+        elif interval_mode == TYPING_INTERVAL_MODE_TARGET_DURATION:
+            try:
+                target_duration_ms = float(self.config.get("typing_target_duration_ms", DEFAULT_TYPING_TARGET_DURATION_MS))
+            except (TypeError, ValueError):
+                target_duration_ms = DEFAULT_TYPING_TARGET_DURATION_MS
+            final_text = self.text_after_mode_processing(text)
+            char_count = max(len(final_text), 1)
+            interval_ms = target_duration_ms / char_count
+            debug_log(
+                "NEWLINE_BEHAVIOR",
+                "typing_interval_resolved",
+                input_source=input_source,
+                typing_interval_mode=interval_mode,
+                text_length=len(final_text),
+                target_duration_ms=target_duration_ms,
+                computed_interval_ms=interval_ms,
+            )
         return interval_ms / 1000
+
+    def text_after_mode_processing(self, text):
+        normalized = str(text).replace("\r\n", "\n").replace("\r", "\n")
+        mode = self.current_input_mode()
+        if mode in (TYPING_MODE_SINGLE_LINE, TYPING_MODE_SPLIT):
+            replacement = "\t" if self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT) == SINGLE_LINE_REPLACEMENT_TAB else " "
+            return normalized.replace("\n", replacement)
+        return normalized
 
     def _typing_worker(self, text, interval, release_keys, input_source):
         ime_state = None

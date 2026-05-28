@@ -9,6 +9,9 @@ from ..constants import (
     DEFAULT_OUTPUT_ENCODING,
     DEFAULT_SINGLE_LINE_REPLACEMENT,
     DEFAULT_TYPING_MODE,
+    TYPING_INTERVAL_MODE_CUSTOM_INTERVAL,
+    TYPING_INTERVAL_MODE_DEFAULT,
+    TYPING_INTERVAL_MODES,
     INPUT_ENCODINGS,
     NEWLINE_METHOD_VERSION,
     NEWLINE_METHODS,
@@ -113,10 +116,18 @@ class SettingsController:
         self.ui.set_status(self.t("status.newline_method_updated"), "ready")
 
     def set_custom_interval_enabled(self, enabled):
-        self.config["custom_interval_enabled"] = bool(enabled)
-        self.ui.set_custom_interval_switch(bool(enabled))
-        self.ui.set_interval_controls_visible(bool(enabled))
+        mode = TYPING_INTERVAL_MODE_CUSTOM_INTERVAL if enabled else TYPING_INTERVAL_MODE_DEFAULT
+        self.set_typing_interval_mode(mode)
+
+    def set_typing_interval_mode(self, mode):
+        if mode not in TYPING_INTERVAL_MODES:
+            return
+        self.config["typing_interval_mode"] = mode
+        self.config["custom_interval_enabled"] = mode == TYPING_INTERVAL_MODE_CUSTOM_INTERVAL
+        self.ui.set_typing_interval_mode_value(mode)
+        self.ui.set_interval_controls_visible(mode)
         self.save_config()
+        self.ui.set_status(self.t("status.typing_interval_mode_applied"), "ready")
 
     def set_remember_settings(self, enabled):
         self.config["remember_settings"] = bool(enabled)
@@ -316,10 +327,25 @@ class SettingsController:
         if not 0.1 <= interval_ms <= 10000:
             self.ui.show_warning("interval", self.t("status.interval_invalid"))
             return
+        self.config["typing_interval_ms"] = round(interval_ms, 3)
         self.config["interval_ms"] = round(interval_ms, 3)
         self.save_config()
         self.ui.sync_config_controls()
-        self.ui.set_status(self.t("status.interval_updated", interval=self.config["interval_ms"]), "ready")
+        self.ui.set_status(self.t("status.interval_saved"), "ready")
+
+    def apply_settings_target_duration(self, duration_text):
+        try:
+            duration_ms = float(duration_text)
+        except ValueError:
+            self.ui.show_warning("target_duration", self.t("status.target_duration_invalid"))
+            return
+        if not 1 <= duration_ms <= 10000:
+            self.ui.show_warning("target_duration", self.t("status.target_duration_invalid"))
+            return
+        self.config["typing_target_duration_ms"] = round(duration_ms, 3)
+        self.save_config()
+        self.ui.sync_config_controls()
+        self.ui.set_status(self.t("status.target_duration_saved"), "ready")
 
     def open_github(self):
         webbrowser.open(GITHUB_URL)

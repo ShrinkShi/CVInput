@@ -4,7 +4,10 @@ import copy
 from pathlib import Path
 
 from .constants import (
+    DEFAULT_INTERVAL_MS,
     DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_INTERVAL_MODE,
+    DEFAULT_TYPING_TARGET_DURATION_MS,
     DEFAULT_TYPING_MODE,
     DEFAULT_INPUT_ENCODING,
     DEFAULT_OUTPUT_ENCODING,
@@ -16,6 +19,9 @@ from .constants import (
     NEWLINE_METHOD_WIN32_VK,
     OUTPUT_ENCODINGS,
     SINGLE_LINE_REPLACEMENTS,
+    TYPING_INTERVAL_MODE_CUSTOM_INTERVAL,
+    TYPING_INTERVAL_MODE_DEFAULT,
+    TYPING_INTERVAL_MODES,
     TYPING_MODES,
     DEFAULT_CONFIG,
 )
@@ -49,6 +55,23 @@ class ConfigStore:
                     data.setdefault("custom_interval_enabled", True)
                 except (TypeError, ValueError):
                     pass
+            if "typing_interval_ms" not in data:
+                for key in ("interval_ms", "typing_interval", "input_interval"):
+                    if key in data:
+                        try:
+                            data["typing_interval_ms"] = float(data[key])
+                        except (TypeError, ValueError):
+                            pass
+                        break
+            if "interval_ms" not in data and "typing_interval_ms" in data:
+                data["interval_ms"] = data["typing_interval_ms"]
+            if "typing_interval_mode" not in data:
+                legacy_custom = data.get("custom_typing_interval", data.get("custom_interval_enabled"))
+                data["typing_interval_mode"] = (
+                    TYPING_INTERVAL_MODE_CUSTOM_INTERVAL
+                    if bool(legacy_custom)
+                    else TYPING_INTERVAL_MODE_DEFAULT
+                )
             if "input_hotkey" not in data and "hotkey" in data:
                 data["input_hotkey"] = data["hotkey"]
             if "input_mode" not in data and "typing_mode" in data:
@@ -81,6 +104,24 @@ class ConfigStore:
         config["typing_mode"] = mode
         if config.get("single_line_replacement") not in SINGLE_LINE_REPLACEMENTS:
             config["single_line_replacement"] = DEFAULT_SINGLE_LINE_REPLACEMENT
+        interval_mode = config.get("typing_interval_mode", DEFAULT_TYPING_INTERVAL_MODE)
+        if interval_mode not in TYPING_INTERVAL_MODES:
+            interval_mode = DEFAULT_TYPING_INTERVAL_MODE
+        config["typing_interval_mode"] = interval_mode
+        config["custom_interval_enabled"] = interval_mode == TYPING_INTERVAL_MODE_CUSTOM_INTERVAL
+        try:
+            interval_ms = float(config.get("typing_interval_ms", config.get("interval_ms", DEFAULT_INTERVAL_MS)))
+        except (TypeError, ValueError):
+            interval_ms = DEFAULT_INTERVAL_MS
+        config["typing_interval_ms"] = interval_ms
+        config["interval_ms"] = interval_ms
+        try:
+            target_duration_ms = float(config.get("typing_target_duration_ms", DEFAULT_TYPING_TARGET_DURATION_MS))
+        except (TypeError, ValueError):
+            target_duration_ms = DEFAULT_TYPING_TARGET_DURATION_MS
+        if not 1 <= target_duration_ms <= 10000:
+            target_duration_ms = DEFAULT_TYPING_TARGET_DURATION_MS
+        config["typing_target_duration_ms"] = target_duration_ms
         if config.get("input_encoding") not in INPUT_ENCODINGS:
             config["input_encoding"] = DEFAULT_INPUT_ENCODING
         if config.get("output_encoding") not in OUTPUT_ENCODINGS:

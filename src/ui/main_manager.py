@@ -14,7 +14,7 @@ class MainManagerMixin:
         self.hotkeys_switch.configure(text=self.t("label.hotkeys"))
         for _button, (key, tooltip) in self.tooltips.items():
             tooltip.set_text(self.t(key))
-        self.update_pin_button(bool(self.config["always_on_top"]))
+        self.refresh_pin_button_state()
         if rebuild_popups:
             settings_open = self.widget_exists(self.settings_window)
             about_open = self.widget_exists(self.about_window)
@@ -155,8 +155,15 @@ class MainManagerMixin:
                 win.attributes("-topmost", bool(enabled))
         self.update_pin_button(enabled)
 
+    def refresh_pin_button_state(self):
+        self.update_pin_button(bool(self.config["always_on_top"]))
+
     def update_pin_button(self, enabled):
-        self.pin_button.configure(text="📌︎", text_color="#6fb49d" if enabled else "#c7d0dc")
+        if not self.widget_exists(getattr(self, "pin_button", None)):
+            return
+        color = "#6fb49d" if enabled else "#c7d0dc"
+        self.pin_button._normal_text_color = color
+        self.pin_button.configure(text="📌︎", text_color=color)
 
     def show_warning(self, _title, message):
         self.set_status(message, "error")

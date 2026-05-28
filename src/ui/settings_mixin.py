@@ -7,6 +7,8 @@ from ..constants import (
     DEFAULT_INPUT_ENCODING,
     DEFAULT_OUTPUT_ENCODING,
     DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_INTERVAL_MODE,
+    DEFAULT_TYPING_TARGET_DURATION_MS,
     DEFAULT_TYPING_MODE,
     DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
     ENCODING_AUTO,
@@ -21,6 +23,9 @@ from ..constants import (
     NEWLINE_METHOD_WIN32_VK,
     SINGLE_LINE_REPLACEMENT_SPACE,
     SINGLE_LINE_REPLACEMENT_TAB,
+    TYPING_INTERVAL_MODE_CUSTOM_INTERVAL,
+    TYPING_INTERVAL_MODE_DEFAULT,
+    TYPING_INTERVAL_MODE_TARGET_DURATION,
     TYPING_MODE_DEFAULT,
     TYPING_MODE_SINGLE_LINE,
     TYPING_MODE_SPLIT,
@@ -75,23 +80,61 @@ class SettingsMixin:
         )
         self.apply_hotkey_toggle_button.pack(side="left", padx=(5, 0))
 
-        interval_row = ctk.CTkFrame(content, fg_color="transparent")
-        interval_row.pack(fill="x", pady=4)
-        ctk.CTkLabel(interval_row, text=self.t("label.interval"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
-        self.custom_interval_switch = self.setting_switch(
-            content,
-            "label.custom_interval_enabled",
-            self.config["custom_interval_enabled"],
-            lambda: self.controller.set_custom_interval_enabled(bool(self.custom_interval_switch.get())),
-            "tooltip.setting.custom_interval_enabled",
+        self.interval_mode_row = ctk.CTkFrame(content, fg_color="transparent")
+        self.interval_mode_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(
+            self.interval_mode_row,
+            text=self.t("label.typing_interval_mode"),
+            width=96,
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+        ).pack(side="left")
+        self.typing_interval_mode_labels = {
+            self.t("label.typing_interval_mode.default"): TYPING_INTERVAL_MODE_DEFAULT,
+            self.t("label.typing_interval_mode.custom_interval"): TYPING_INTERVAL_MODE_CUSTOM_INTERVAL,
+            self.t("label.typing_interval_mode.target_duration"): TYPING_INTERVAL_MODE_TARGET_DURATION,
+        }
+        self.typing_interval_mode_menu = ctk.CTkOptionMenu(
+            self.interval_mode_row,
+            values=list(self.typing_interval_mode_labels.keys()),
+            height=26,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            font=("Segoe UI", 10),
+            command=self.on_typing_interval_mode_selected,
         )
+        self.typing_interval_mode_menu.pack(side="left", fill="x", expand=True)
+        self.set_typing_interval_mode_value(self.config.get("typing_interval_mode", DEFAULT_TYPING_INTERVAL_MODE))
+        self.add_tooltip(self.typing_interval_mode_menu, "tooltip.setting.typing_interval_mode")
 
-        self.interval_row = interval_row
-        self.interval_entry = self.setting_entry(interval_row, str(self.config["interval_ms"]))
+        self.interval_row = ctk.CTkFrame(content, fg_color="transparent")
+        ctk.CTkLabel(self.interval_row, text=self.t("label.interval"), width=96, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.interval_entry = self.setting_entry(
+            self.interval_row,
+            str(self.config.get("typing_interval_ms", self.config["interval_ms"])),
+        )
         self.interval_entry.pack(side="left", fill="x", expand=True)
-        self.apply_interval_button = self.icon_button(interval_row, "✓", self.apply_interval_from_settings, "tooltip.apply_interval")
+        self.apply_interval_button = self.icon_button(self.interval_row, "✓", self.apply_interval_from_settings, "tooltip.apply_interval")
         self.apply_interval_button.pack(side="left", padx=(5, 0))
-        self.set_interval_controls_visible(bool(self.config["custom_interval_enabled"]))
+
+        self.target_duration_row = ctk.CTkFrame(content, fg_color="transparent")
+        ctk.CTkLabel(self.target_duration_row, text=self.t("label.target_duration"), width=96, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.target_duration_entry = self.setting_entry(
+            self.target_duration_row,
+            str(self.config.get("typing_target_duration_ms", DEFAULT_TYPING_TARGET_DURATION_MS)),
+        )
+        self.target_duration_entry.pack(side="left", fill="x", expand=True)
+        self.apply_target_duration_button = self.icon_button(
+            self.target_duration_row,
+            "✓",
+            self.apply_target_duration_from_settings,
+            "tooltip.apply_target_duration",
+        )
+        self.apply_target_duration_button.pack(side="left", padx=(5, 0))
+        self.set_interval_controls_visible(self.config.get("typing_interval_mode", DEFAULT_TYPING_INTERVAL_MODE))
 
         self.clipboard_switch = self.setting_switch(
             content,
@@ -394,6 +437,9 @@ class SettingsMixin:
     def apply_interval_from_settings(self):
         self.controller.apply_settings_interval(self.interval_entry.get().strip())
 
+    def apply_target_duration_from_settings(self):
+        self.controller.apply_settings_target_duration(self.target_duration_entry.get().strip())
+
     def apply_input_mode_from_settings(self):
         self.controller.apply_input_mode_settings(
             self.selected_typing_mode(),
@@ -557,6 +603,10 @@ class SettingsMixin:
         method = self.newline_method_labels.get(label, DEFAULT_NEWLINE_SHIFT_ENTER_METHOD)
         self.controller.set_newline_shift_enter_method(method)
 
+    def on_typing_interval_mode_selected(self, label):
+        mode = self.typing_interval_mode_labels.get(label, DEFAULT_TYPING_INTERVAL_MODE)
+        self.controller.set_typing_interval_mode(mode)
+
     def on_typing_mode_selected(self, label):
         mode = self.typing_mode_labels.get(label, DEFAULT_TYPING_MODE)
         self.set_single_line_replacement_visible(mode)
@@ -614,6 +664,13 @@ class SettingsMixin:
         label = next((text for text, value in labels.items() if value == mode), None)
         self.typing_mode_menu.set(label or self.t("label.typing_mode.default"))
 
+    def set_typing_interval_mode_value(self, mode):
+        if not self.widget_exists(getattr(self, "typing_interval_mode_menu", None)):
+            return
+        labels = getattr(self, "typing_interval_mode_labels", {})
+        label = next((text for text, value in labels.items() if value == mode), None)
+        self.typing_interval_mode_menu.set(label or self.t("label.typing_interval_mode.default"))
+
     def set_single_line_replacement_value(self, replacement):
         if not self.widget_exists(getattr(self, "single_line_replacement_menu", None)):
             return
@@ -644,8 +701,8 @@ class SettingsMixin:
             row.pack(fill="x", pady=(2, 5), after=self.typing_mode_row)
 
     def set_custom_interval_switch(self, enabled):
-        if self.widget_exists(getattr(self, "custom_interval_switch", None)):
-            self.custom_interval_switch.select() if enabled else self.custom_interval_switch.deselect()
+        mode = TYPING_INTERVAL_MODE_CUSTOM_INTERVAL if enabled else TYPING_INTERVAL_MODE_DEFAULT
+        self.set_typing_interval_mode_value(mode)
 
     def set_remember_settings_switch(self, enabled):
         if self.widget_exists(getattr(self, "remember_settings_switch", None)):
@@ -667,12 +724,16 @@ class SettingsMixin:
         if self.widget_exists(getattr(self, "debug_newline_behavior_switch", None)):
             self.debug_newline_behavior_switch.select() if enabled else self.debug_newline_behavior_switch.deselect()
 
-    def set_interval_controls_visible(self, enabled):
+    def set_interval_controls_visible(self, mode):
         if not self.widget_exists(getattr(self, "interval_row", None)):
             return
         self.interval_row.pack_forget()
-        if enabled:
-            self.interval_row.pack(fill="x", pady=4, after=self.custom_interval_switch)
+        if self.widget_exists(getattr(self, "target_duration_row", None)):
+            self.target_duration_row.pack_forget()
+        if mode == TYPING_INTERVAL_MODE_CUSTOM_INTERVAL:
+            self.interval_row.pack(fill="x", pady=(2, 5), after=self.interval_mode_row)
+        elif mode == TYPING_INTERVAL_MODE_TARGET_DURATION and self.widget_exists(getattr(self, "target_duration_row", None)):
+            self.target_duration_row.pack(fill="x", pady=(2, 5), after=self.interval_mode_row)
 
     def refresh_popup_blur_behavior(self):
         if self.config.get("close_popup_on_blur", False):
@@ -704,8 +765,9 @@ class SettingsMixin:
             self.config.get("output_encoding", DEFAULT_OUTPUT_ENCODING),
         )
         self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
-        self.set_custom_interval_switch(bool(self.config["custom_interval_enabled"]))
-        self.set_interval_controls_visible(bool(self.config["custom_interval_enabled"]))
+        interval_mode = self.config.get("typing_interval_mode", DEFAULT_TYPING_INTERVAL_MODE)
+        self.set_typing_interval_mode_value(interval_mode)
+        self.set_interval_controls_visible(interval_mode)
         self.set_multi_slot_visible(bool(self.config["multi_slot_enabled"]))
         self.set_close_to_tray_switch(bool(self.config["close_to_tray"]))
         self.set_startup_switch(bool(self.config["startup_on_boot"]))
@@ -725,7 +787,12 @@ class SettingsMixin:
         if self.widget_exists(getattr(self, "hotkey_toggle_entry", None)):
             self.replace_entry_text(self.hotkey_toggle_entry, str(self.config["hotkey_toggle_hotkey"]))
         if self.widget_exists(getattr(self, "interval_entry", None)):
-            self.replace_entry_text(self.interval_entry, str(self.config["interval_ms"]))
+            self.replace_entry_text(self.interval_entry, str(self.config.get("typing_interval_ms", self.config["interval_ms"])))
+        if self.widget_exists(getattr(self, "target_duration_entry", None)):
+            self.replace_entry_text(
+                self.target_duration_entry,
+                str(self.config.get("typing_target_duration_ms", DEFAULT_TYPING_TARGET_DURATION_MS)),
+            )
         if self.widget_exists(getattr(self, "opacity_slider", None)):
             self.opacity_slider.set(float(self.config["opacity"]))
         if self.widget_exists(getattr(self, "language_menu", None)):
