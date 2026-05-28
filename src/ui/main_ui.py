@@ -256,8 +256,8 @@ class CVInputUI(
             width=78,
             height=5,
             corner_radius=4,
-            fg_color="#242a33",
-            progress_color="#6fb49d",
+            fg_color="#11161d",
+            progress_color="#d47d7d",
         )
         self.progress_bar.set(0)
         self.progress_bar.pack(side="left", padx=(8, 0), pady=(6, 0))

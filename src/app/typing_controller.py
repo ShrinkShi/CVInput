@@ -39,6 +39,10 @@ class TypingController:
     def start_typing_from_button(self):
         self.start_typing([], input_source="button")
 
+    def stop_typing_from_hotkey(self, release_keys):
+        self.typing_engine._release_trigger_keys(release_keys)
+        self.stop_typing()
+
     def start_typing(self, release_keys, text=None, input_source="unknown"):
         if self.typing_thread and self.typing_thread.is_alive():
             return

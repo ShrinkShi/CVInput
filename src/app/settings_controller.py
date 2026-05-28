@@ -244,6 +244,7 @@ class SettingsController:
     def restore_default_settings(self):
         old_startup = bool(self.config.get("startup_on_boot"))
         old_input_hotkey = self.config.get("input_hotkey")
+        old_stop_hotkey = self.config.get("stop_typing_hotkey", self.config.get("input_hotkey"))
         old_toggle_hotkey = self.config.get("hotkey_toggle_hotkey")
         defaults = copy.deepcopy(DEFAULT_CONFIG)
         self.config.clear()
@@ -263,6 +264,7 @@ class SettingsController:
         message = self.register_hotkey()
         if message:
             self.config["input_hotkey"] = old_input_hotkey
+            self.config["stop_typing_hotkey"] = old_stop_hotkey
             self.config["hotkey_toggle_hotkey"] = old_toggle_hotkey
             self.register_hotkey()
             self.ui.show_warning("hotkey", self.t("status.input_hotkey_failed"))
@@ -292,6 +294,28 @@ class SettingsController:
 
         self.save_config()
         self.ui.set_status(self.t("status.hotkey_applied", hotkey=hotkey), "ready")
+
+    def apply_settings_stop_typing_hotkey(self, hotkey):
+        if not hotkey:
+            self.ui.show_warning("hotkey", self.t("status.hotkey_empty"))
+            return
+        try:
+            self.main_hotkey_manager.parse_hotkey(hotkey)
+        except ValueError:
+            self.ui.show_warning("hotkey", self.t("status.stop_hotkey_failed"))
+            return
+
+        old_hotkey = self.config.get("stop_typing_hotkey", self.config["input_hotkey"])
+        self.config["stop_typing_hotkey"] = hotkey
+        message = self.refresh_main_hotkey_registration(force=True)
+        if message:
+            self.config["stop_typing_hotkey"] = old_hotkey
+            self.refresh_main_hotkey_registration(force=True)
+            self.ui.show_warning("hotkey", self.t("status.stop_hotkey_failed"))
+            return
+
+        self.save_config()
+        self.ui.set_status(self.t("status.stop_hotkey_applied", hotkey=hotkey), "ready")
 
     def apply_settings_hotkey(self, hotkey):
         self.apply_settings_input_hotkey(hotkey)

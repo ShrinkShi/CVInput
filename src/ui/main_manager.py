@@ -170,15 +170,18 @@ class MainManagerMixin:
 
     def reset_input_progress(self):
         self.progress_bar.set(0)
+        self.progress_bar.configure(progress_color=self.progress_color_for_ratio(0))
         self.progress_percent_label.configure(text="")
 
     def set_input_progress(self, done, total):
         if total <= 0:
             self.progress_bar.set(0)
+            self.progress_bar.configure(progress_color=self.progress_color_for_ratio(0))
             self.progress_percent_label.configure(text="")
             return
         ratio = min(max(done / total, 0), 1)
         self.progress_bar.set(ratio)
+        self.progress_bar.configure(progress_color=self.progress_color_for_ratio(ratio))
         percent = ratio * 100
         if percent <= 0:
             text = ""
@@ -187,3 +190,20 @@ class MainManagerMixin:
         else:
             text = f"{percent:.1f}%"
         self.progress_percent_label.configure(text=text)
+
+    def progress_color_for_ratio(self, ratio):
+        ratio = min(max(float(ratio), 0.0), 1.0)
+        if ratio <= 0.5:
+            return self.interpolate_color("#d47d7d", "#c7a86a", ratio / 0.5)
+        return self.interpolate_color("#c7a86a", "#6fb49d", (ratio - 0.5) / 0.5)
+
+    def interpolate_color(self, start, end, ratio):
+        ratio = min(max(float(ratio), 0.0), 1.0)
+        start_rgb = self.hex_to_rgb(start)
+        end_rgb = self.hex_to_rgb(end)
+        mixed = tuple(round(start_rgb[index] + (end_rgb[index] - start_rgb[index]) * ratio) for index in range(3))
+        return f"#{mixed[0]:02x}{mixed[1]:02x}{mixed[2]:02x}"
+
+    def hex_to_rgb(self, value):
+        value = str(value).lstrip("#")
+        return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))

@@ -25,6 +25,7 @@ class HotkeyController:
 
     def refresh_main_hotkey_registration(self, force=False, show_status=True):
         hotkey = str(self.config["input_hotkey"])
+        stop_hotkey = str(self.config.get("stop_typing_hotkey", hotkey))
         if not self.config.get("hotkeys_enabled", True):
             if self.main_hotkey_registered or force:
                 self.main_hotkey_manager.stop()
@@ -44,22 +45,33 @@ class HotkeyController:
                 self.ui.set_status(self.t("status.hotkey_released_empty", hotkey=hotkey), "idle")
             return None
 
-        if not force and self.main_hotkey_registered and self.registered_main_hotkey == hotkey:
+        registered_signature = f"{hotkey}|{stop_hotkey}"
+        if not force and self.main_hotkey_registered and self.registered_main_hotkey == registered_signature:
             if show_status:
                 self.ui.set_status(self.t("status.hotkey_registered", hotkey=hotkey), "ready")
             return None
 
         self.main_hotkey_manager.stop()
-        registered, failures = self.main_hotkey_manager.start_all({"main": hotkey}, self.on_hotkey)
+        hotkeys = {"main": hotkey}
+        if stop_hotkey != hotkey:
+            hotkeys["stop_typing"] = stop_hotkey
+        registered, failures = self.main_hotkey_manager.start_all(hotkeys, self.on_hotkey)
         if "main" not in registered:
             self.main_hotkey_registered = False
             self.registered_main_hotkey = None
             if show_status:
                 self.ui.set_status(self.t("status.input_hotkey_failed"), "error")
             return failures.get("main", self.t("status.input_hotkey_failed"))
+        if stop_hotkey != hotkey and "stop_typing" not in registered:
+            self.main_hotkey_registered = False
+            self.registered_main_hotkey = None
+            self.main_hotkey_manager.stop()
+            if show_status:
+                self.ui.set_status(self.t("status.stop_hotkey_failed"), "error")
+            return failures.get("stop_typing", self.t("status.stop_hotkey_failed"))
 
         self.main_hotkey_registered = True
-        self.registered_main_hotkey = hotkey
+        self.registered_main_hotkey = registered_signature
         if show_status:
             self.ui.set_status(self.t("status.hotkey_registered", hotkey=hotkey), "ready")
         return None
@@ -82,8 +94,13 @@ class HotkeyController:
         self.schedule_ui(lambda hotkey_action=action, keys=release_keys: self.handle_hotkey(hotkey_action, keys))
 
     def handle_hotkey(self, action, release_keys):
+        if action in ("main", "stop_typing") and self.is_typing_active():
+            self.stop_typing_from_hotkey(release_keys)
+            return
         if action == "main":
             self.start_typing_from_hotkey(release_keys)
+            return
+        if action == "stop_typing":
             return
         if action == "toggle_hotkeys":
             self.toggle_hotkeys_enabled_from_hotkey(release_keys)
@@ -115,3 +132,6 @@ class HotkeyController:
             return action
         index = int(action.split("_", 1)[1])
         return SLOT_HOTKEYS[index] if 0 <= index < len(SLOT_HOTKEYS) else action
+
+    def is_typing_active(self):
+        return bool(self.typing_thread and self.typing_thread.is_alive())

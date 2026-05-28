@@ -67,6 +67,22 @@ class SettingsMixin:
         self.apply_hotkey_button = self.icon_button(hotkey_row, "✓", self.apply_input_hotkey_from_settings, "tooltip.apply_hotkey")
         self.apply_hotkey_button.pack(side="left", padx=(5, 0))
 
+        stop_hotkey_row = ctk.CTkFrame(content, fg_color="transparent")
+        stop_hotkey_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(stop_hotkey_row, text=self.t("label.stop_typing_hotkey"), width=96, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
+        self.stop_hotkey_entry = self.setting_entry(
+            stop_hotkey_row,
+            str(self.config.get("stop_typing_hotkey", self.config["input_hotkey"])),
+        )
+        self.stop_hotkey_entry.pack(side="left", fill="x", expand=True)
+        self.apply_stop_hotkey_button = self.icon_button(
+            stop_hotkey_row,
+            "✓",
+            self.apply_stop_hotkey_from_settings,
+            "tooltip.apply_stop_hotkey",
+        )
+        self.apply_stop_hotkey_button.pack(side="left", padx=(5, 0))
+
         hotkey_toggle_row = ctk.CTkFrame(content, fg_color="transparent")
         hotkey_toggle_row.pack(fill="x", pady=(2, 5))
         ctk.CTkLabel(hotkey_toggle_row, text=self.t("label.hotkey_toggle_hotkey"), width=96, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
@@ -431,6 +447,9 @@ class SettingsMixin:
     def apply_input_hotkey_from_settings(self):
         self.controller.apply_settings_input_hotkey(self.input_hotkey_entry.get().strip())
 
+    def apply_stop_hotkey_from_settings(self):
+        self.controller.apply_settings_stop_typing_hotkey(self.stop_hotkey_entry.get().strip())
+
     def apply_hotkey_toggle_from_settings(self):
         self.controller.apply_settings_hotkey_toggle_hotkey(self.hotkey_toggle_entry.get().strip())
 
@@ -784,6 +803,11 @@ class SettingsMixin:
             self.clear_switch.select() if self.config["clear_after_input"] else self.clear_switch.deselect()
         if self.widget_exists(getattr(self, "input_hotkey_entry", None)):
             self.replace_entry_text(self.input_hotkey_entry, str(self.config["input_hotkey"]))
+        if self.widget_exists(getattr(self, "stop_hotkey_entry", None)):
+            self.replace_entry_text(
+                self.stop_hotkey_entry,
+                str(self.config.get("stop_typing_hotkey", self.config["input_hotkey"])),
+            )
         if self.widget_exists(getattr(self, "hotkey_toggle_entry", None)):
             self.replace_entry_text(self.hotkey_toggle_entry, str(self.config["hotkey_toggle_hotkey"]))
         if self.widget_exists(getattr(self, "interval_entry", None)):

@@ -64,18 +64,12 @@ class WidgetFactoryMixin:
             font=font,
             command=command,
         )
-        hover_font = self.enlarged_font(font)
-
         def on_enter(_event=None):
             if not self.widget_exists(button):
                 return
             button._normal_text_color = button.cget("text_color")
             try:
-                button.configure(font=hover_font, text_color=self.icon_hover_color(button._normal_text_color))
-                if hover_image is not None:
-                    button.configure(image=hover_image)
-                elif image is not None:
-                    image.configure(size=(18, 18))
+                button.configure(text_color=self.icon_hover_color(button._normal_text_color))
             except Exception:
                 pass
 
@@ -84,10 +78,6 @@ class WidgetFactoryMixin:
                 return
             try:
                 button.configure(font=font, text_color=getattr(button, "_normal_text_color", text_color))
-                if hover_image is not None:
-                    button.configure(image=image)
-                elif image is not None:
-                    image.configure(size=(16, 16))
             except Exception:
                 pass
 
