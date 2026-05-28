@@ -126,6 +126,7 @@ class TypingController:
         self.ui.set_status(self.t("status.stopped") if stopped else self.t("status.done"), "ready")
         if not stopped and self.config["clear_after_input"]:
             self.ui.clear_text()
+            self.ui.clear_raw_text()
             self.refresh_main_hotkey_registration()
 
     def on_typing_error(self, message):

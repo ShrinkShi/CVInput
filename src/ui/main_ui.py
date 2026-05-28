@@ -21,8 +21,8 @@ class CVInputUI(
     ctk.CTk,
 ):
     WIDTH = 380
-    HEIGHT = 210
-    EXPANDED_HEIGHT = 620
+    HEIGHT = 310
+    EXPANDED_HEIGHT = 720
     SLOT_FRAME_HEIGHT = 392
     SLOT_TEXTBOX_HEIGHT = 30
     SETTINGS_SIZE = (344, 486)
@@ -157,9 +157,42 @@ class CVInputUI(
 
         self.preview_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.preview_frame.pack(fill="x", padx=12, pady=(0, 6))
+        self.raw_text_label = ctk.CTkLabel(
+            self.preview_frame,
+            text=self.t("label.raw_clipboard_text"),
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color=MUTED,
+            height=16,
+        )
+        self.raw_text_label.pack(fill="x")
+        self.raw_text_box = ctk.CTkTextbox(
+            self.preview_frame,
+            height=66,
+            corner_radius=9,
+            border_width=1,
+            border_color="#303743",
+            fg_color=SURFACE_DARK,
+            text_color=TEXT,
+            font=("Segoe UI", 11),
+            wrap="word",
+        )
+        self.raw_text_box.pack(fill="x", pady=(0, 5))
+        self.raw_text_box.bind("<KeyRelease>", lambda _event: self.controller.on_raw_text_changed(), add="+")
+        self.raw_text_box.bind("<FocusOut>", lambda _event: self.controller.on_raw_text_changed(), add="+")
+
+        self.candidate_text_label = ctk.CTkLabel(
+            self.preview_frame,
+            text=self.t("label.input_candidate_text"),
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color=MUTED,
+            height=16,
+        )
+        self.candidate_text_label.pack(fill="x")
         self.text_box = ctk.CTkTextbox(
             self.preview_frame,
-            height=76,
+            height=66,
             corner_radius=9,
             border_width=1,
             border_color="#303743",

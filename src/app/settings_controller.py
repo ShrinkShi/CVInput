@@ -83,6 +83,7 @@ class SettingsController:
         self.ui.set_single_line_replacement_visible(mode)
         self.save_config()
         self.refresh_main_hotkey_registration(force=True)
+        self.apply_mode_to_raw_text()
         print(f"[INPUT_MODE] applied mode={mode} replacement={replacement}", flush=True)
         debug_log("NEWLINE_BEHAVIOR", "input_mode_applied", mode=mode, replacement=replacement)
         self.ui.set_status(self.t("status.mode_applied"), "ready")

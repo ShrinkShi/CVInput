@@ -56,6 +56,8 @@
   "label.clear_after_typing": "Clear after typing",
   "label.disable_hotkey_when_clipboard_empty": "Do not capture hotkey when clipboard text is empty",
   "label.toggle_ime_with_shift": "Switch IME before and after typing",
+  "label.raw_clipboard_text": "Raw clipboard text",
+  "label.input_candidate_text": "Input candidate text",
   "label.typing_mode": "Mode",
   "label.typing_mode.default": "Default mode",
   "label.typing_mode.single_line": "Single-line mode",

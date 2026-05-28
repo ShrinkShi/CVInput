@@ -64,6 +64,8 @@ BUILTIN_FALLBACK = {
     "label.clear_after_typing": "输入后清空",
     "label.disable_hotkey_when_clipboard_empty": "剪贴板无文本时不接管快捷键",
     "label.toggle_ime_with_shift": "输入前后切换英文输入状态",
+    "label.raw_clipboard_text": "原始剪贴板文本",
+    "label.input_candidate_text": "待输入候选文本",
     "label.typing_mode": "模式",
     "label.typing_mode.default": "默认模式",
     "label.typing_mode.single_line": "单行模式",

@@ -8,6 +8,8 @@ class MainManagerMixin:
     def refresh_texts(self, rebuild_popups=True):
         self.title_label.configure(text=self.t("app.title"))
         self.subtitle_label.configure(text=self.t("app.subtitle"))
+        self.raw_text_label.configure(text=self.t("label.raw_clipboard_text"))
+        self.candidate_text_label.configure(text=self.t("label.input_candidate_text"))
         self.listen_switch.configure(text=self.t("label.listen"))
         self.hotkeys_switch.configure(text=self.t("label.hotkeys"))
         for _button, (key, tooltip) in self.tooltips.items():
@@ -98,8 +100,19 @@ class MainManagerMixin:
     def clear_text(self):
         self.text_box.delete("1.0", "end")
 
+    def get_raw_text(self):
+        return self.raw_text_box.get("1.0", "end-1c")
+
+    def set_raw_text(self, text):
+        self.raw_text_box.delete("1.0", "end")
+        self.raw_text_box.insert("1.0", text)
+
+    def clear_raw_text(self):
+        self.raw_text_box.delete("1.0", "end")
+
     def is_text_focused(self):
-        return self.focus_get() is self.text_box
+        focused = self.focus_get()
+        return focused in (self.text_box, self.raw_text_box)
 
     def set_status(self, text, state="ready"):
         colors = {

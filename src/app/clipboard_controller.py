@@ -22,6 +22,13 @@ class ClipboardController:
         if self.ui.is_text_focused() and not force:
             return
         text = self.normalize_clipboard_text(text)
+        self.ui.set_raw_text(text)
+        self.apply_mode_to_raw_text(text)
+
+    def apply_mode_to_raw_text(self, text=None):
+        if text is None:
+            text = self.ui.get_raw_text()
+        text = self.normalize_clipboard_text(text)
         mode = self.current_input_mode()
         if mode == TYPING_MODE_SPLIT:
             self.create_split_queue(text)
@@ -34,6 +41,9 @@ class ClipboardController:
         self.clear_split_queue()
         self.ui.set_text(text)
         self.refresh_main_hotkey_registration()
+
+    def on_raw_text_changed(self):
+        self.apply_mode_to_raw_text(self.ui.get_raw_text())
 
     def normalize_clipboard_text(self, text):
         return self.decode_input_text(text).replace("\r\n", "\n").replace("\r", "\n")
