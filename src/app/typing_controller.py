@@ -91,9 +91,9 @@ class TypingController:
         return interval_ms / 1000
 
     def _typing_worker(self, text, interval, release_keys, input_source):
-        should_restore_ime = False
+        ime_state = None
         try:
-            should_restore_ime = maybe_toggle_ime_before_typing(self.config)
+            ime_state = maybe_toggle_ime_before_typing(self.config)
             progress_callback = lambda done, total: self.schedule_ui(
                 lambda current=done, count=total: self.ui.set_input_progress(current, count)
             )
@@ -113,7 +113,7 @@ class TypingController:
         except Exception as e:
             self.schedule_ui(lambda message=str(e): self.on_typing_error(message))
         finally:
-            restore_ime_after_typing(should_restore_ime)
+            restore_ime_after_typing(ime_state)
 
     def on_typing_done(self, stopped, input_source="unknown"):
         if (

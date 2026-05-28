@@ -7,11 +7,13 @@ from threading import Lock
 MAX_LOG_LINES = 5000
 CATEGORY_WINDOW_POSITION = "WINDOW_POSITION"
 CATEGORY_NEWLINE_BEHAVIOR = "NEWLINE_BEHAVIOR"
+CATEGORY_IME = "IME"
 
 _developer_mode = False
 _category_enabled = {
     CATEGORY_WINDOW_POSITION: False,
     CATEGORY_NEWLINE_BEHAVIOR: False,
+    CATEGORY_IME: False,
 }
 _lines = deque(maxlen=MAX_LOG_LINES)
 _lock = Lock()

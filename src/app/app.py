@@ -3,7 +3,7 @@ import threading
 from ..clipboard import ClipboardMonitor
 from ..config import ConfigStore
 from ..constants import APP_NAME
-from ..debug_logger import CATEGORY_NEWLINE_BEHAVIOR, CATEGORY_WINDOW_POSITION, configure_debug
+from ..debug_logger import CATEGORY_IME, CATEGORY_NEWLINE_BEHAVIOR, CATEGORY_WINDOW_POSITION, configure_debug
 from ..hotkey import HotkeyManager
 from ..i18n import Translator
 from ..startup import StartupManager
@@ -34,6 +34,7 @@ class CVInputApp(
             {
                 CATEGORY_WINDOW_POSITION: bool(self.config.get("debug_window_position", False)),
                 CATEGORY_NEWLINE_BEHAVIOR: bool(self.config.get("debug_newline_behavior", False)),
+                CATEGORY_IME: bool(self.config.get("debug_newline_behavior", False)),
             },
         )
         self.ensure_multi_slots()

@@ -17,6 +17,7 @@ from ..constants import (
     TYPING_MODES,
 )
 from ..debug_logger import (
+    CATEGORY_IME,
     CATEGORY_NEWLINE_BEHAVIOR,
     CATEGORY_WINDOW_POSITION,
     clear_debug_log,
@@ -149,6 +150,7 @@ class SettingsController:
     def set_debug_newline_behavior(self, enabled):
         self.config["debug_newline_behavior"] = bool(enabled)
         set_category_enabled(CATEGORY_NEWLINE_BEHAVIOR, bool(enabled))
+        set_category_enabled(CATEGORY_IME, bool(enabled))
         self.ui.set_debug_newline_behavior_switch(bool(enabled))
         self.save_config()
         self.ui.update_developer_log_count()
@@ -242,6 +244,7 @@ class SettingsController:
         set_developer_mode(bool(self.config.get("developer_mode", False)))
         set_category_enabled(CATEGORY_WINDOW_POSITION, bool(self.config.get("debug_window_position", False)))
         set_category_enabled(CATEGORY_NEWLINE_BEHAVIOR, bool(self.config.get("debug_newline_behavior", False)))
+        set_category_enabled(CATEGORY_IME, bool(self.config.get("debug_newline_behavior", False)))
         self.translator.set_language(self.config["language"])
         self.ensure_multi_slots()
         self.ui.sync_config_controls()
