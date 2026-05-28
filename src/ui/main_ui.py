@@ -148,9 +148,25 @@ class CVInputUI(
         self.right_tools.grid(row=0, column=2, sticky="e")
         self.pin_button = self.icon_button(self.right_tools, "📌︎", self.controller.toggle_always_on_top, "tooltip.pin")
         self.pin_button.pack(side="left")
-        self.minimize_button = self.icon_button(self.right_tools, "-", self.minimize_window, "tooltip.minimize")
+        self.minimize_button = self.icon_button(
+            self.right_tools,
+            "-",
+            self.minimize_window,
+            "tooltip.minimize",
+            font=("Segoe UI Symbol", 15),
+            width=38,
+            height=38,
+        )
         self.minimize_button.pack(side="left", padx=(2, 0))
-        self.close_button = self.icon_button(self.right_tools, "×", self.controller.close, "tooltip.close")
+        self.close_button = self.icon_button(
+            self.right_tools,
+            "×",
+            self.controller.close,
+            "tooltip.close",
+            font=("Segoe UI Symbol", 15),
+            width=38,
+            height=38,
+        )
         self.close_button.pack(side="left", padx=(2, 0))
 
         for widget in (self.titlebar, self.title_group, self.title_label, self.subtitle_label):
@@ -215,7 +231,7 @@ class CVInputUI(
             "✏️",
             self.controller.start_typing_from_button,
             "tooltip.type",
-            text_color="#6fb49d",
+            text_color="#c7d0dc",
             font=("Segoe UI Emoji", 13),
         )
         self.input_button.pack(side="left", pady=(2, 0))
@@ -224,7 +240,7 @@ class CVInputUI(
             "■",
             self.controller.stop_typing,
             "tooltip.stop",
-            text_color="#d47d7d",
+            text_color="#c7d0dc",
         )
         self.stop_button.pack(side="left", padx=(3, 0), pady=(2, 0))
         self.read_button = self.icon_button(
@@ -244,7 +260,7 @@ class CVInputUI(
             progress_color="#6fb49d",
         )
         self.progress_bar.set(0)
-        self.progress_bar.pack(side="left", padx=(8, 0), pady=(8, 0))
+        self.progress_bar.pack(side="left", padx=(8, 0), pady=(6, 0))
         self.progress_percent_label = ctk.CTkLabel(
             self.action_frame,
             text="",

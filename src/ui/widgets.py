@@ -47,13 +47,15 @@ class WidgetFactoryMixin:
         font=("Segoe UI Symbol", 13),
         image=None,
         hover_image=None,
+        width=25,
+        height=25,
     ):
         button = ctk.CTkButton(
             parent,
             text=text,
             image=image,
-            width=25,
-            height=25,
+            width=width,
+            height=height,
             corner_radius=6,
             border_width=0,
             fg_color="transparent",

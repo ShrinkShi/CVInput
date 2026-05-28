@@ -153,7 +153,7 @@ class AboutMixin:
         self.contact_window = win
         self.prepare_popup(win, *self.CONTACT_SIZE)
         frame = self.popup_frame(win)
-        self.popup_header(frame, "label.contact_me", self.close_contact_popup)
+        self.popup_header(frame, "label.contact_me", self.close_contact_popup, centered=True)
 
         content = ctk.CTkFrame(frame, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=14, pady=(8, 12))
