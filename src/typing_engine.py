@@ -4,12 +4,18 @@ from pynput.keyboard import Controller, Key
 
 from .constants import (
     DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
+    DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_MODE,
     NEWLINE_METHOD_AUTO,
     NEWLINE_METHOD_KEYBOARD,
     NEWLINE_METHOD_PYNPUT,
     NEWLINE_METHOD_PYAUTOGUI,
     NEWLINE_METHOD_WIN32_SCAN,
     NEWLINE_METHOD_WIN32_VK,
+    SINGLE_LINE_REPLACEMENT_TAB,
+    TYPING_MODE_DEFAULT,
+    TYPING_MODE_SINGLE_LINE,
+    TYPING_MODE_SPLIT,
 )
 from .debug_logger import debug_log
 from .win_input import (
@@ -20,6 +26,7 @@ from .win_input import (
     is_available as win32_input_available,
     send_key_event,
     send_scan_event,
+    send_unicode_text,
 )
 
 
@@ -38,11 +45,13 @@ class TypingEngine:
         interval,
         stop_event,
         release_keys,
-        newline_with_shift_enter=True,
         newline_shift_enter_method=DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
+        typing_mode=DEFAULT_TYPING_MODE,
+        single_line_replacement=DEFAULT_SINGLE_LINE_REPLACEMENT,
         on_progress=None,
         input_source="unknown",
     ):
+        text = self.prepare_text_for_typing(text, typing_mode, single_line_replacement, input_source)
         self._release_trigger_keys(release_keys)
         time.sleep(0.05)
         total = len(text)
@@ -51,20 +60,9 @@ class TypingEngine:
             if stop_event.is_set():
                 break
             if char == "\n":
-                resolved_method = self.resolve_newline_method(newline_shift_enter_method)
-                debug_log(
-                    "NEWLINE_BEHAVIOR",
-                    "newline_detected",
-                    index=index,
-                    input_source=input_source,
-                    newline_with_shift_enter=bool(newline_with_shift_enter),
-                    strategy="SHIFT_ENTER" if newline_with_shift_enter else "ENTER",
-                    method=newline_shift_enter_method if newline_with_shift_enter else "pynput",
-                    resolved_method=resolved_method if newline_with_shift_enter else "pynput",
-                )
-                # Message editors often submit on Enter; this setting types a real Shift+Enter newline instead.
-                self.type_newline(
-                    newline_with_shift_enter,
+                self.type_newline_for_mode(
+                    typing_mode,
+                    single_line_replacement,
                     newline_shift_enter_method,
                     index=index,
                     input_source=input_source,
@@ -73,40 +71,94 @@ class TypingEngine:
                 self.controller.press(Key.tab)
                 self.controller.release(Key.tab)
             else:
-                self.controller.type(char)
+                self.type_character(char, index, input_source)
             done += 1
             if on_progress:
                 on_progress(done, total)
             time.sleep(interval)
 
+    def prepare_text_for_typing(self, text, typing_mode, single_line_replacement, input_source="unknown"):
+        normalized = str(text).replace("\r\n", "\n").replace("\r", "\n")
+        if typing_mode not in (TYPING_MODE_SINGLE_LINE, TYPING_MODE_SPLIT):
+            return normalized
+        replacement = "\t" if single_line_replacement == SINGLE_LINE_REPLACEMENT_TAB else " "
+        processed = normalized.replace("\n", replacement)
+        if processed != normalized:
+            debug_log(
+                "NEWLINE_BEHAVIOR",
+                "text_preprocessed_for_mode",
+                input_source=input_source,
+                mode=typing_mode,
+                newline_count=normalized.count("\n"),
+                replacement="TAB" if replacement == "\t" else "SPACE",
+            )
+        return processed
+
+    def type_character(self, char, index=None, input_source="unknown"):
+        if ord(char) > 127 and win32_input_available():
+            try:
+                send_unicode_text(char)
+                debug_log("NEWLINE_BEHAVIOR", "unicode_char_typed", index=index, input_source=input_source, char=char)
+                return
+            except Exception as e:
+                debug_log(
+                    "NEWLINE_BEHAVIOR",
+                    "unicode_char_fallback",
+                    index=index,
+                    input_source=input_source,
+                    char=char,
+                    error=str(e),
+                )
+        self.controller.type(char)
+
+    def type_newline_for_mode(self, typing_mode, single_line_replacement, method, index=None, input_source="unknown"):
+        if typing_mode in (TYPING_MODE_SINGLE_LINE, TYPING_MODE_SPLIT):
+            replacement = "\t" if single_line_replacement == SINGLE_LINE_REPLACEMENT_TAB else " "
+            replacement_name = "TAB" if replacement == "\t" else "SPACE"
+            debug_log(
+                "NEWLINE_BEHAVIOR",
+                "newline_replaced",
+                index=index,
+                input_source=input_source,
+                mode=typing_mode,
+                replacement=replacement_name,
+            )
+            if replacement == "\t":
+                self.controller.press(Key.tab)
+                self.controller.release(Key.tab)
+            else:
+                self.controller.type(replacement)
+            return
+
+        resolved_method = self.resolve_newline_method(method)
+        debug_log(
+            "NEWLINE_BEHAVIOR",
+            "newline_detected",
+            index=index,
+            input_source=input_source,
+            mode=TYPING_MODE_DEFAULT,
+            strategy="SHIFT_ENTER",
+            method=method,
+            resolved_method=resolved_method,
+        )
+        self.type_newline(method, index=index, input_source=input_source)
+
     def type_newline(
         self,
-        newline_with_shift_enter,
         newline_shift_enter_method=DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
         index=None,
         input_source="unknown",
     ):
-        resolved_method = self.resolve_newline_method(newline_shift_enter_method) if newline_with_shift_enter else NEWLINE_METHOD_PYNPUT
+        resolved_method = self.resolve_newline_method(newline_shift_enter_method)
         debug_log(
             "NEWLINE_BEHAVIOR",
             "newline_key_sequence_start",
             index=index,
             input_source=input_source,
-            strategy="SHIFT_ENTER" if newline_with_shift_enter else "ENTER",
-            method=newline_shift_enter_method if newline_with_shift_enter else "pynput",
+            strategy="SHIFT_ENTER",
+            method=newline_shift_enter_method,
             resolved_method=resolved_method,
         )
-        if not newline_with_shift_enter:
-            try:
-                debug_log("NEWLINE_BEHAVIOR", "enter_press", index=index, input_source=input_source)
-                self.controller.press(Key.enter)
-                debug_log("NEWLINE_BEHAVIOR", "enter_release", index=index, input_source=input_source)
-                self.controller.release(Key.enter)
-                debug_log("NEWLINE_BEHAVIOR", "newline_key_sequence_end", index=index, input_source=input_source)
-            except Exception as e:
-                debug_log("NEWLINE_BEHAVIOR", "newline_key_sequence_error", index=index, input_source=input_source, error=str(e))
-                raise
-            return
 
         if resolved_method == NEWLINE_METHOD_WIN32_SCAN and win32_input_available():
             self._type_shift_enter_win32_scan(index, input_source)

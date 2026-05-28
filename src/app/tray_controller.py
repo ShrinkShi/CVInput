@@ -41,6 +41,7 @@ class TrayController:
         if not self.ui.widget_exists(self.ui):
             return
         try:
+            self.ui.close_transient_windows()
             self.ui.withdraw()
         except Exception:
             pass

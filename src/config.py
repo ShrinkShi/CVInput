@@ -4,11 +4,19 @@ import copy
 from pathlib import Path
 
 from .constants import (
+    DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_MODE,
+    DEFAULT_INPUT_ENCODING,
+    DEFAULT_OUTPUT_ENCODING,
+    INPUT_ENCODINGS,
     NEWLINE_METHOD_VERSION,
     NEWLINE_METHODS,
     NEWLINE_METHOD_PYAUTOGUI,
     NEWLINE_METHOD_WIN32_SCAN,
     NEWLINE_METHOD_WIN32_VK,
+    OUTPUT_ENCODINGS,
+    SINGLE_LINE_REPLACEMENTS,
+    TYPING_MODES,
     DEFAULT_CONFIG,
 )
 
@@ -43,6 +51,10 @@ class ConfigStore:
                     pass
             if "input_hotkey" not in data and "hotkey" in data:
                 data["input_hotkey"] = data["hotkey"]
+            if "input_mode" not in data and "typing_mode" in data:
+                data["input_mode"] = data["typing_mode"]
+            if "typing_mode" not in data and "input_mode" in data:
+                data["typing_mode"] = data["input_mode"]
             if "developer_mode" not in data and "debug_mode" in data:
                 data["developer_mode"] = bool(data.get("debug_mode"))
                 if data["developer_mode"] and "debug_window_position" not in data:
@@ -62,6 +74,17 @@ class ConfigStore:
         if config.get("newline_shift_enter_method") not in NEWLINE_METHODS:
             config["newline_shift_enter_method"] = DEFAULT_CONFIG["newline_shift_enter_method"]
         config["newline_shift_enter_method_version"] = NEWLINE_METHOD_VERSION
+        mode = config.get("input_mode", config.get("typing_mode", DEFAULT_TYPING_MODE))
+        if mode not in TYPING_MODES:
+            mode = DEFAULT_TYPING_MODE
+        config["input_mode"] = mode
+        config["typing_mode"] = mode
+        if config.get("single_line_replacement") not in SINGLE_LINE_REPLACEMENTS:
+            config["single_line_replacement"] = DEFAULT_SINGLE_LINE_REPLACEMENT
+        if config.get("input_encoding") not in INPUT_ENCODINGS:
+            config["input_encoding"] = DEFAULT_INPUT_ENCODING
+        if config.get("output_encoding") not in OUTPUT_ENCODINGS:
+            config["output_encoding"] = DEFAULT_OUTPUT_ENCODING
         return config
 
     def save(self, config):

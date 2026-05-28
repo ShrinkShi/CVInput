@@ -60,6 +60,8 @@ class CVInputApp(
         )
         self.typing_stop_event = threading.Event()
         self.typing_thread = None
+        self.split_lines = []
+        self.split_index = 0
         self.exiting = False
 
         self.clipboard_monitor.set_enabled(bool(self.config["auto_clipboard"]))

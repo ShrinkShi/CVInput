@@ -27,7 +27,7 @@ class CVInputUI(
     SLOT_TEXTBOX_HEIGHT = 30
     SETTINGS_SIZE = (344, 486)
     ABOUT_SIZE = (430, 620)
-    DEVELOPER_DEBUG_SIZE = (286, 196)
+    DEVELOPER_DEBUG_SIZE = (286, 236)
 
     def __init__(self, controller, config):
         super().__init__()
@@ -144,7 +144,7 @@ class CVInputUI(
 
         self.right_tools = ctk.CTkFrame(self.titlebar, fg_color="transparent")
         self.right_tools.grid(row=0, column=2, sticky="e")
-        self.pin_button = self.icon_button(self.right_tools, "📌", self.controller.toggle_always_on_top, "tooltip.pin")
+        self.pin_button = self.icon_button(self.right_tools, "📌︎", self.controller.toggle_always_on_top, "tooltip.pin")
         self.pin_button.pack(side="left")
         self.minimize_button = self.icon_button(self.right_tools, "-", self.minimize_window, "tooltip.minimize")
         self.minimize_button.pack(side="left", padx=(2, 0))

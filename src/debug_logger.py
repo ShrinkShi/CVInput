@@ -62,10 +62,10 @@ def debug_log(category, message, **data):
     print(line, flush=True)
 
 
-def export_debug_log(path, empty_text="No debug logs yet"):
+def export_debug_log(path, empty_text="No debug logs yet", encoding="utf-8"):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(get_debug_log_text(empty_text=empty_text), encoding="utf-8")
+    target.write_text(get_debug_log_text(empty_text=empty_text), encoding=encoding)
 
 
 def clear_debug_log():

@@ -1,6 +1,14 @@
 import threading
 
-from ..constants import DEFAULT_INTERVAL_MS, DEFAULT_NEWLINE_SHIFT_ENTER_METHOD
+from ..constants import (
+    DEFAULT_INTERVAL_MS,
+    DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
+    DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_MODE,
+    SINGLE_LINE_REPLACEMENT_TAB,
+    TYPING_MODE_SINGLE_LINE,
+    TYPING_MODE_SPLIT,
+)
 from ..ime import maybe_toggle_ime_before_typing, restore_ime_after_typing
 
 
@@ -35,6 +43,7 @@ class TypingController:
             self.ui.set_status(self.t("status.text_empty"), "idle")
             return
 
+        self.print_input_mode_debug(text, input_source)
         self.typing_stop_event.clear()
         self.ui.reset_input_progress()
         self.ui.set_status(self.t("status.typing"), "working")
@@ -44,6 +53,33 @@ class TypingController:
             daemon=True,
         )
         self.typing_thread.start()
+
+    def print_input_mode_debug(self, text, input_source):
+        mode = self.current_input_mode()
+        replacement = self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT)
+        split_lines = getattr(self, "split_lines", [])
+        raw_text = str(text)
+        line_count = len(split_lines) if mode == TYPING_MODE_SPLIT and split_lines else len(raw_text.splitlines())
+        processed_text = raw_text
+        if mode in (TYPING_MODE_SINGLE_LINE, TYPING_MODE_SPLIT):
+            newline_replacement = "\t" if replacement == SINGLE_LINE_REPLACEMENT_TAB else " "
+            processed_text = raw_text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", newline_replacement)
+        preview = processed_text.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+        if len(preview) > 120:
+            preview = preview[:117] + "..."
+        print(
+            "[INPUT_MODE] "
+            f"source={input_source} "
+            f"mode={mode} "
+            f"single_line_replacement={replacement} "
+            f"split_index={getattr(self, 'split_index', 0)} "
+            f"split_queue_size={len(split_lines)} "
+            f"line_count={line_count} "
+            f"processed_text_preview={preview!r}"
+        )
+
+    def current_input_mode(self):
+        return self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE))
 
     def input_interval_seconds(self):
         interval_ms = DEFAULT_INTERVAL_MS
@@ -66,19 +102,27 @@ class TypingController:
                 interval,
                 self.typing_stop_event,
                 release_keys,
-                bool(self.config["newline_with_shift_enter"]),
                 self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD),
+                self.current_input_mode(),
+                self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT),
                 progress_callback,
                 input_source,
             )
             stopped = self.typing_stop_event.is_set()
-            self.schedule_ui(lambda: self.on_typing_done(stopped))
+            self.schedule_ui(lambda source=input_source: self.on_typing_done(stopped, source))
         except Exception as e:
             self.schedule_ui(lambda message=str(e): self.on_typing_error(message))
         finally:
             restore_ime_after_typing(should_restore_ime)
 
-    def on_typing_done(self, stopped):
+    def on_typing_done(self, stopped, input_source="unknown"):
+        if (
+            not stopped
+            and self.current_input_mode() == TYPING_MODE_SPLIT
+            and input_source in ("main_text_hotkey", "button")
+            and self.advance_split_queue()
+        ):
+            return
         self.ui.set_status(self.t("status.stopped") if stopped else self.t("status.done"), "ready")
         if not stopped and self.config["clear_after_input"]:
             self.ui.clear_text()

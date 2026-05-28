@@ -3,11 +3,24 @@ import webbrowser
 
 import pyperclip
 
-from ..constants import DEFAULT_CONFIG, NEWLINE_METHOD_VERSION, NEWLINE_METHODS
+from ..constants import (
+    DEFAULT_CONFIG,
+    DEFAULT_INPUT_ENCODING,
+    DEFAULT_OUTPUT_ENCODING,
+    DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_MODE,
+    INPUT_ENCODINGS,
+    NEWLINE_METHOD_VERSION,
+    NEWLINE_METHODS,
+    OUTPUT_ENCODINGS,
+    SINGLE_LINE_REPLACEMENTS,
+    TYPING_MODES,
+)
 from ..debug_logger import (
     CATEGORY_NEWLINE_BEHAVIOR,
     CATEGORY_WINDOW_POSITION,
     clear_debug_log,
+    debug_log,
     export_debug_log,
     get_debug_log_count,
     set_category_enabled,
@@ -48,6 +61,45 @@ class SettingsController:
         self.config["newline_with_shift_enter"] = bool(enabled)
         self.ui.set_newline_switch(bool(enabled))
         self.save_config()
+
+    def set_typing_mode(self, mode):
+        self.apply_input_mode_settings(mode, self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT))
+
+    def set_single_line_replacement(self, replacement):
+        self.apply_input_mode_settings(self.current_input_mode(), replacement)
+
+    def apply_input_mode_settings(self, mode, replacement):
+        if mode not in TYPING_MODES:
+            return
+        if replacement not in SINGLE_LINE_REPLACEMENTS:
+            return
+        if mode != self.current_input_mode():
+            self.clear_split_queue()
+        self.config["input_mode"] = mode
+        self.config["typing_mode"] = mode
+        self.config["single_line_replacement"] = replacement
+        self.ui.set_typing_mode_value(mode)
+        self.ui.set_single_line_replacement_value(replacement)
+        self.ui.set_single_line_replacement_visible(mode)
+        self.save_config()
+        self.refresh_main_hotkey_registration(force=True)
+        print(f"[INPUT_MODE] applied mode={mode} replacement={replacement}", flush=True)
+        debug_log("NEWLINE_BEHAVIOR", "input_mode_applied", mode=mode, replacement=replacement)
+        self.ui.set_status(self.t("status.mode_applied"), "ready")
+
+    def current_input_mode(self):
+        return self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE))
+
+    def set_text_encodings(self, input_encoding, output_encoding):
+        if input_encoding not in INPUT_ENCODINGS:
+            return
+        if output_encoding not in OUTPUT_ENCODINGS:
+            return
+        self.config["input_encoding"] = input_encoding
+        self.config["output_encoding"] = output_encoding
+        self.ui.set_encoding_values(input_encoding, output_encoding)
+        self.save_config()
+        self.ui.set_status(self.t("status.encoding_applied"), "ready")
 
     def set_newline_shift_enter_method(self, method):
         if method not in NEWLINE_METHODS:
@@ -102,7 +154,11 @@ class SettingsController:
 
     def export_debug_log(self, path):
         try:
-            export_debug_log(path, empty_text=self.t("status.debug_log_empty"))
+            export_debug_log(
+                path,
+                empty_text=self.t("status.debug_log_empty"),
+                encoding=self.config.get("output_encoding", DEFAULT_OUTPUT_ENCODING),
+            )
         except Exception as e:
             self.ui.set_status(self.t("status.debug_log_export_failed", error=e), "error")
             return
@@ -178,6 +234,7 @@ class SettingsController:
         defaults = copy.deepcopy(DEFAULT_CONFIG)
         self.config.clear()
         self.config.update(defaults)
+        self.clear_split_queue()
         if old_startup and not defaults["startup_on_boot"]:
             self.startup_manager.set_enabled(False)
         self.clipboard_monitor.set_enabled(bool(self.config["auto_clipboard"]))

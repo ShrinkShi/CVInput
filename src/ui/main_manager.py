@@ -63,6 +63,7 @@ class MainManagerMixin:
         self.update_child_windows_position()
 
     def minimize_window(self):
+        self.close_transient_windows()
         self.overrideredirect(False)
         self.iconify()
         self.map_binding = self.bind("<Map>", self.restore_borderless, add="+")
@@ -130,19 +131,19 @@ class MainManagerMixin:
     def set_opacity_value(self, value):
         alpha = float(value)
         self.attributes("-alpha", alpha)
-        for win in (self.settings_window, self.about_window):
+        for win in (self.settings_window, self.about_window, self.developer_debug_window):
             if self.widget_exists(win):
                 win.attributes("-alpha", alpha)
 
     def set_topmost_value(self, enabled):
         self.attributes("-topmost", bool(enabled))
-        for win in (self.settings_window, self.about_window):
+        for win in (self.settings_window, self.about_window, self.developer_debug_window):
             if self.widget_exists(win):
                 win.attributes("-topmost", bool(enabled))
         self.update_pin_button(enabled)
 
     def update_pin_button(self, enabled):
-        self.pin_button.configure(text="📌", text_color="#6fb49d" if enabled else "#c7d0dc")
+        self.pin_button.configure(text="📌︎", text_color="#6fb49d" if enabled else "#c7d0dc")
 
     def show_warning(self, _title, message):
         self.set_status(message, "error")

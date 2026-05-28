@@ -5,6 +5,7 @@ from ctypes import wintypes
 
 INPUT_KEYBOARD = 1
 KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
 KEYEVENTF_SCANCODE = 0x0008
 KEYEVENTF_EXTENDEDKEY = 0x0001
 VK_LSHIFT = 0xA0
@@ -155,3 +156,18 @@ def send_scan_chord(modifier_scan_code, main_scan_code):
             _keyboard_input(scan_code=modifier_scan_code, flags=KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP),
         ]
     )
+
+
+def send_unicode_text(text):
+    if not _IS_WINDOWS:
+        raise OSError("Win32 SendInput is only available on Windows")
+
+    encoded = str(text).encode("utf-16-le")
+    events = []
+    for index in range(0, len(encoded), 2):
+        unit = int.from_bytes(encoded[index : index + 2], "little")
+        events.append(_keyboard_input(scan_code=unit, flags=KEYEVENTF_UNICODE))
+        events.append(_keyboard_input(scan_code=unit, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
+    if not events:
+        return 0, 0
+    return _send_inputs(events)

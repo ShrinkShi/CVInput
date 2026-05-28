@@ -130,3 +130,49 @@ def left_attached_geometry(parent, child_width, child_height, gap=10):
         child_y=child_y,
     )
     return int(child_x), int(child_y)
+
+
+def developer_panel_geometry(main, settings, child_width, child_height, settings_width, gap=10):
+    main_rect = tk_geometry_rect(main, getattr(main, "WIDTH", 1), getattr(main, "HEIGHT", 1))
+    main_x, main_y, main_w, main_h = main_rect
+    scale_x, scale_y, main_visual_w, _main_visual_h = window_visual_scale(main, main_w, main_h)
+    settings_visual_w = max(settings_width, round(settings_width * scale_x))
+    child_visual_w = max(child_width, round(child_width * scale_x))
+    child_visual_h = max(child_height, round(child_height * scale_y))
+    screen_w = main.winfo_screenwidth()
+    screen_h = main.winfo_screenheight()
+
+    settings_left_x = main_x - settings_visual_w - gap
+    if settings_left_x >= 0:
+        left_of_settings_x = settings_left_x - child_visual_w - gap
+        if left_of_settings_x >= 0:
+            child_x = left_of_settings_x
+            placement = "left_of_settings"
+        else:
+            child_x = main_x + main_visual_w + gap
+            placement = "right_of_main"
+    else:
+        settings_rect = tk_geometry_rect(settings, settings_width, 1)
+        settings_x = settings_rect[0]
+        child_x = settings_x + settings_visual_w + gap
+        placement = "right_of_settings"
+        if child_x + child_visual_w > screen_w:
+            left_of_main_x = main_x - child_visual_w - gap
+            if left_of_main_x >= 0:
+                child_x = left_of_main_x
+                placement = "left_of_main_fallback"
+
+    child_x = max(0, min(child_x, max(0, screen_w - child_visual_w)))
+    child_y = max(0, min(main_y, max(0, screen_h - child_visual_h)))
+    debug_log(
+        "WINDOW_POSITION",
+        "developer_panel_geometry",
+        main_geometry=main.geometry(),
+        settings_geometry=settings.geometry(),
+        placement=placement,
+        child_width=child_width,
+        child_height=child_height,
+        child_x=child_x,
+        child_y=child_y,
+    )
+    return int(child_x), int(child_y)

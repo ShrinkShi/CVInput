@@ -4,12 +4,26 @@ from datetime import datetime
 import customtkinter as ctk
 
 from ..constants import (
+    DEFAULT_INPUT_ENCODING,
+    DEFAULT_OUTPUT_ENCODING,
+    DEFAULT_SINGLE_LINE_REPLACEMENT,
+    DEFAULT_TYPING_MODE,
     DEFAULT_NEWLINE_SHIFT_ENTER_METHOD,
+    ENCODING_AUTO,
+    ENCODING_BIG5,
+    ENCODING_GBK,
+    ENCODING_UTF_8,
+    ENCODING_UTF_8_SIG,
     NEWLINE_METHOD_KEYBOARD,
     NEWLINE_METHOD_PYNPUT,
     NEWLINE_METHOD_PYAUTOGUI,
     NEWLINE_METHOD_WIN32_SCAN,
     NEWLINE_METHOD_WIN32_VK,
+    SINGLE_LINE_REPLACEMENT_SPACE,
+    SINGLE_LINE_REPLACEMENT_TAB,
+    TYPING_MODE_DEFAULT,
+    TYPING_MODE_SINGLE_LINE,
+    TYPING_MODE_SPLIT,
 )
 from ..debug_logger import debug_log
 from .theme import ACCENT, HOVER, MUTED, SURFACE, SURFACE_DARK, TEXT
@@ -107,44 +121,155 @@ class SettingsMixin:
             lambda: self.controller.set_toggle_ime_with_shift(bool(self.ime_switch.get())),
             "tooltip.setting.toggle_ime_with_shift",
         )
-        self.newline_switch = self.setting_switch(
-            content,
-            "label.newline_with_shift_enter",
-            self.config["newline_with_shift_enter"],
-            lambda: self.controller.set_newline_with_shift_enter(bool(self.newline_switch.get())),
-            "tooltip.setting.newline_with_shift_enter",
-        )
-        newline_method_row = ctk.CTkFrame(content, fg_color="transparent")
-        newline_method_row.pack(fill="x", pady=(2, 5))
+        self.typing_mode_row = ctk.CTkFrame(content, fg_color="transparent")
+        self.typing_mode_row.pack(fill="x", pady=(2, 5))
         ctk.CTkLabel(
-            newline_method_row,
-            text=self.t("label.newline_method"),
+            self.typing_mode_row,
+            text=self.t("label.typing_mode"),
             width=96,
             anchor="w",
             font=("Segoe UI", 10),
             text_color="#c6ced9",
         ).pack(side="left")
-        self.newline_method_labels = {
-            self.t("label.newline_method.pynput"): NEWLINE_METHOD_PYNPUT,
-            self.t("label.newline_method.win32_scan"): NEWLINE_METHOD_WIN32_SCAN,
-            self.t("label.newline_method.win32_vk"): NEWLINE_METHOD_WIN32_VK,
-            self.t("label.newline_method.pyautogui"): NEWLINE_METHOD_PYAUTOGUI,
-            self.t("label.newline_method.keyboard"): NEWLINE_METHOD_KEYBOARD,
+        self.typing_mode_labels = {
+            self.t("label.typing_mode.default"): TYPING_MODE_DEFAULT,
+            self.t("label.typing_mode.single_line"): TYPING_MODE_SINGLE_LINE,
+            self.t("label.typing_mode.split"): TYPING_MODE_SPLIT,
         }
-        self.newline_method_menu = ctk.CTkOptionMenu(
-            newline_method_row,
-            values=list(self.newline_method_labels.keys()),
+        self.typing_mode_menu = ctk.CTkOptionMenu(
+            self.typing_mode_row,
+            values=list(self.typing_mode_labels.keys()),
             height=26,
             fg_color=SURFACE_DARK,
             button_color=ACCENT,
             button_hover_color="#34554f",
             dropdown_fg_color=SURFACE,
             font=("Segoe UI", 10),
-            command=self.on_newline_method_selected,
+            command=self.on_typing_mode_selected,
         )
-        self.newline_method_menu.pack(side="left", fill="x", expand=True)
-        self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
-        self.add_tooltip(self.newline_method_menu, "tooltip.setting.newline_method")
+        self.typing_mode_menu.pack(side="left", fill="x", expand=True)
+        self.apply_typing_mode_button = self.icon_button(
+            self.typing_mode_row,
+            "✓",
+            self.apply_input_mode_from_settings,
+            "tooltip.apply_mode",
+        )
+        self.apply_typing_mode_button.pack(side="left", padx=(5, 0))
+        self.set_typing_mode_value(self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE)))
+        self.add_tooltip(self.typing_mode_menu, "tooltip.setting.typing_mode")
+
+        self.single_line_replacement_row = ctk.CTkFrame(content, fg_color="transparent")
+        ctk.CTkLabel(
+            self.single_line_replacement_row,
+            text=self.t("label.single_line_replacement"),
+            width=96,
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+        ).pack(side="left")
+        self.single_line_replacement_labels = {
+            self.t("label.single_line_replacement.space"): SINGLE_LINE_REPLACEMENT_SPACE,
+            self.t("label.single_line_replacement.tab"): SINGLE_LINE_REPLACEMENT_TAB,
+        }
+        self.single_line_replacement_menu = ctk.CTkOptionMenu(
+            self.single_line_replacement_row,
+            values=list(self.single_line_replacement_labels.keys()),
+            height=26,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            font=("Segoe UI", 10),
+            command=self.on_single_line_replacement_selected,
+        )
+        self.single_line_replacement_menu.pack(side="left", fill="x", expand=True)
+        self.apply_single_line_replacement_button = self.icon_button(
+            self.single_line_replacement_row,
+            "✓",
+            self.apply_input_mode_from_settings,
+            "tooltip.apply_mode",
+        )
+        self.apply_single_line_replacement_button.pack(side="left", padx=(5, 0))
+        self.set_single_line_replacement_value(self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT))
+        self.add_tooltip(self.single_line_replacement_menu, "tooltip.setting.single_line_replacement")
+        self.set_single_line_replacement_visible(self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE)))
+
+        input_encoding_row = ctk.CTkFrame(content, fg_color="transparent")
+        input_encoding_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(
+            input_encoding_row,
+            text=self.t("label.input_encoding"),
+            width=96,
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+        ).pack(side="left")
+        self.input_encoding_labels = {
+            self.t("label.encoding.auto"): ENCODING_AUTO,
+            self.t("label.encoding.utf_8"): ENCODING_UTF_8,
+            self.t("label.encoding.utf_8_sig"): ENCODING_UTF_8_SIG,
+            self.t("label.encoding.gbk"): ENCODING_GBK,
+            self.t("label.encoding.big5"): ENCODING_BIG5,
+        }
+        self.input_encoding_menu = ctk.CTkOptionMenu(
+            input_encoding_row,
+            values=list(self.input_encoding_labels.keys()),
+            height=26,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            font=("Segoe UI", 10),
+        )
+        self.input_encoding_menu.pack(side="left", fill="x", expand=True)
+        self.apply_input_encoding_button = self.icon_button(
+            input_encoding_row,
+            "✓",
+            self.apply_encoding_from_settings,
+            "tooltip.apply_encoding",
+        )
+        self.apply_input_encoding_button.pack(side="left", padx=(5, 0))
+        self.add_tooltip(self.input_encoding_menu, "tooltip.setting.input_encoding")
+
+        output_encoding_row = ctk.CTkFrame(content, fg_color="transparent")
+        output_encoding_row.pack(fill="x", pady=(2, 5))
+        ctk.CTkLabel(
+            output_encoding_row,
+            text=self.t("label.output_encoding"),
+            width=96,
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+        ).pack(side="left")
+        self.output_encoding_labels = {
+            self.t("label.encoding.utf_8"): ENCODING_UTF_8,
+            self.t("label.encoding.utf_8_sig"): ENCODING_UTF_8_SIG,
+            self.t("label.encoding.gbk"): ENCODING_GBK,
+            self.t("label.encoding.big5"): ENCODING_BIG5,
+        }
+        self.output_encoding_menu = ctk.CTkOptionMenu(
+            output_encoding_row,
+            values=list(self.output_encoding_labels.keys()),
+            height=26,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            font=("Segoe UI", 10),
+        )
+        self.output_encoding_menu.pack(side="left", fill="x", expand=True)
+        self.apply_encoding_button = self.icon_button(
+            output_encoding_row,
+            "✓",
+            self.apply_encoding_from_settings,
+            "tooltip.apply_encoding",
+        )
+        self.apply_encoding_button.pack(side="left", padx=(5, 0))
+        self.add_tooltip(self.output_encoding_menu, "tooltip.setting.output_encoding")
+        self.set_encoding_values(
+            self.config.get("input_encoding", DEFAULT_INPUT_ENCODING),
+            self.config.get("output_encoding", DEFAULT_OUTPUT_ENCODING),
+        )
         self.multi_slot_switch = self.setting_switch(
             content,
             "label.multi_slot_enabled",
@@ -269,6 +394,18 @@ class SettingsMixin:
     def apply_interval_from_settings(self):
         self.controller.apply_settings_interval(self.interval_entry.get().strip())
 
+    def apply_input_mode_from_settings(self):
+        self.controller.apply_input_mode_settings(
+            self.selected_typing_mode(),
+            self.selected_single_line_replacement(),
+        )
+
+    def apply_encoding_from_settings(self):
+        self.controller.set_text_encodings(
+            self.selected_input_encoding(),
+            self.selected_output_encoding(),
+        )
+
     def export_debug_log_from_settings(self):
         initialfile = f"CVInput-debug-{datetime.now().strftime('%Y%m%d-%H%M%S')}.txt"
         parent = self.settings_window if self.widget_exists(self.settings_window) else self
@@ -313,6 +450,37 @@ class SettingsMixin:
             lambda: self.controller.set_debug_newline_behavior(bool(self.debug_newline_behavior_switch.get())),
             "tooltip.setting.debug_newline_behavior",
         )
+        backend_row = ctk.CTkFrame(content, fg_color="transparent")
+        backend_row.pack(fill="x", pady=(6, 3))
+        ctk.CTkLabel(
+            backend_row,
+            text=self.t("label.newline_backend"),
+            width=88,
+            anchor="w",
+            font=("Segoe UI", 10),
+            text_color="#c6ced9",
+        ).pack(side="left")
+        self.newline_method_labels = {
+            self.t("label.newline_method.pynput"): NEWLINE_METHOD_PYNPUT,
+            self.t("label.newline_method.win32_scan"): NEWLINE_METHOD_WIN32_SCAN,
+            self.t("label.newline_method.win32_vk"): NEWLINE_METHOD_WIN32_VK,
+            self.t("label.newline_method.pyautogui"): NEWLINE_METHOD_PYAUTOGUI,
+            self.t("label.newline_method.keyboard"): NEWLINE_METHOD_KEYBOARD,
+        }
+        self.newline_method_menu = ctk.CTkOptionMenu(
+            backend_row,
+            values=list(self.newline_method_labels.keys()),
+            height=26,
+            fg_color=SURFACE_DARK,
+            button_color=ACCENT,
+            button_hover_color="#34554f",
+            dropdown_fg_color=SURFACE,
+            font=("Segoe UI", 10),
+            command=self.on_newline_method_selected,
+        )
+        self.newline_method_menu.pack(side="left", fill="x", expand=True)
+        self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
+        self.add_tooltip(self.newline_method_menu, "tooltip.setting.newline_backend")
 
         button_row = ctk.CTkFrame(content, fg_color="transparent")
         button_row.pack(fill="x", pady=(9, 5))
@@ -389,6 +557,33 @@ class SettingsMixin:
         method = self.newline_method_labels.get(label, DEFAULT_NEWLINE_SHIFT_ENTER_METHOD)
         self.controller.set_newline_shift_enter_method(method)
 
+    def on_typing_mode_selected(self, label):
+        mode = self.typing_mode_labels.get(label, DEFAULT_TYPING_MODE)
+        self.set_single_line_replacement_visible(mode)
+
+    def on_single_line_replacement_selected(self, label):
+        return
+
+    def selected_typing_mode(self):
+        if not self.widget_exists(getattr(self, "typing_mode_menu", None)):
+            return self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE))
+        return self.typing_mode_labels.get(self.typing_mode_menu.get(), DEFAULT_TYPING_MODE)
+
+    def selected_single_line_replacement(self):
+        if not self.widget_exists(getattr(self, "single_line_replacement_menu", None)):
+            return self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT)
+        return self.single_line_replacement_labels.get(self.single_line_replacement_menu.get(), DEFAULT_SINGLE_LINE_REPLACEMENT)
+
+    def selected_input_encoding(self):
+        if not self.widget_exists(getattr(self, "input_encoding_menu", None)):
+            return self.config.get("input_encoding", DEFAULT_INPUT_ENCODING)
+        return self.input_encoding_labels.get(self.input_encoding_menu.get(), DEFAULT_INPUT_ENCODING)
+
+    def selected_output_encoding(self):
+        if not self.widget_exists(getattr(self, "output_encoding_menu", None)):
+            return self.config.get("output_encoding", DEFAULT_OUTPUT_ENCODING)
+        return self.output_encoding_labels.get(self.output_encoding_menu.get(), DEFAULT_OUTPUT_ENCODING)
+
     def set_disable_empty_switch(self, enabled):
         if self.widget_exists(getattr(self, "disable_empty_switch", None)):
             self.disable_empty_switch.select() if enabled else self.disable_empty_switch.deselect()
@@ -411,6 +606,42 @@ class SettingsMixin:
             self.t("label.newline_method.pyautogui"),
         )
         self.newline_method_menu.set(label or default_label)
+
+    def set_typing_mode_value(self, mode):
+        if not self.widget_exists(getattr(self, "typing_mode_menu", None)):
+            return
+        labels = getattr(self, "typing_mode_labels", {})
+        label = next((text for text, value in labels.items() if value == mode), None)
+        self.typing_mode_menu.set(label or self.t("label.typing_mode.default"))
+
+    def set_single_line_replacement_value(self, replacement):
+        if not self.widget_exists(getattr(self, "single_line_replacement_menu", None)):
+            return
+        labels = getattr(self, "single_line_replacement_labels", {})
+        label = next((text for text, value in labels.items() if value == replacement), None)
+        self.single_line_replacement_menu.set(label or self.t("label.single_line_replacement.space"))
+
+    def set_encoding_values(self, input_encoding, output_encoding):
+        if self.widget_exists(getattr(self, "input_encoding_menu", None)):
+            input_label = next(
+                (text for text, value in self.input_encoding_labels.items() if value == input_encoding),
+                self.t("label.encoding.auto"),
+            )
+            self.input_encoding_menu.set(input_label)
+        if self.widget_exists(getattr(self, "output_encoding_menu", None)):
+            output_label = next(
+                (text for text, value in self.output_encoding_labels.items() if value == output_encoding),
+                self.t("label.encoding.utf_8"),
+            )
+            self.output_encoding_menu.set(output_label)
+
+    def set_single_line_replacement_visible(self, mode):
+        row = getattr(self, "single_line_replacement_row", None)
+        if not self.widget_exists(row):
+            return
+        row.pack_forget()
+        if mode == TYPING_MODE_SINGLE_LINE:
+            row.pack(fill="x", pady=(2, 5), after=self.typing_mode_row)
 
     def set_custom_interval_switch(self, enabled):
         if self.widget_exists(getattr(self, "custom_interval_switch", None)):
@@ -464,7 +695,14 @@ class SettingsMixin:
         self.set_clipboard_switch(bool(self.config["auto_clipboard"]))
         self.set_disable_empty_switch(bool(self.config["disable_hotkey_when_clipboard_empty"]))
         self.set_ime_switch(bool(self.config["toggle_ime_with_shift"]))
-        self.set_newline_switch(bool(self.config["newline_with_shift_enter"]))
+        mode = self.config.get("input_mode", self.config.get("typing_mode", DEFAULT_TYPING_MODE))
+        self.set_typing_mode_value(mode)
+        self.set_single_line_replacement_value(self.config.get("single_line_replacement", DEFAULT_SINGLE_LINE_REPLACEMENT))
+        self.set_single_line_replacement_visible(mode)
+        self.set_encoding_values(
+            self.config.get("input_encoding", DEFAULT_INPUT_ENCODING),
+            self.config.get("output_encoding", DEFAULT_OUTPUT_ENCODING),
+        )
         self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
         self.set_custom_interval_switch(bool(self.config["custom_interval_enabled"]))
         self.set_interval_controls_visible(bool(self.config["custom_interval_enabled"]))

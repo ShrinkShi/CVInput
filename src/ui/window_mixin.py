@@ -4,7 +4,7 @@ import customtkinter as ctk
 
 from .theme import BORDER, SURFACE, TEXT, TRANSPARENT_KEY
 from ..debug_logger import debug_log
-from .window_utils import coerce_window_size, left_attached_geometry, widget_exists
+from .window_utils import coerce_window_size, developer_panel_geometry, left_attached_geometry, widget_exists
 
 
 class WindowMixin:
@@ -169,44 +169,67 @@ class WindowMixin:
             self.place_developer_debug_window()
 
     def place_developer_debug_window(self):
-        if not self.widget_exists(getattr(self, "developer_debug_window", None)):
+        if not self.widget_exists(getattr(self, "developer_debug_window", None)) or not self.widget_exists(self.settings_window):
             return
-        parent = self.settings_window if self.widget_exists(self.settings_window) else self
         try:
             is_first_show = self.developer_debug_window.state() == "withdrawn"
             if is_first_show:
-                self.show_child_popup_left_of(parent, self.developer_debug_window, *self.DEVELOPER_DEBUG_SIZE)
+                self.show_developer_popup(self.developer_debug_window, *self.DEVELOPER_DEBUG_SIZE)
                 return
-            self._apply_window_left_geometry(parent, self.developer_debug_window, *self.DEVELOPER_DEBUG_SIZE)
+            self._apply_developer_geometry(self.developer_debug_window, *self.DEVELOPER_DEBUG_SIZE)
             self.developer_debug_window.attributes("-alpha", float(self.config["opacity"]))
         except tk.TclError:
             pass
 
-    def show_child_popup_left_of(self, parent, child, width=None, height=None):
+    def _apply_developer_geometry(self, child, width=None, height=None):
+        self.update_idletasks()
+        self.settings_window.update_idletasks()
+        child.update_idletasks()
+        child_w = coerce_window_size(width, child.winfo_width() or child.winfo_reqwidth())
+        child_h = coerce_window_size(height, child.winfo_height() or child.winfo_reqheight())
+        child_x, child_y = developer_panel_geometry(
+            self,
+            self.settings_window,
+            child_w,
+            child_h,
+            self.SETTINGS_SIZE[0],
+        )
+        target_geometry = f"{child_w}x{child_h}+{child_x}+{child_y}"
+        child.geometry(target_geometry)
+        child.update_idletasks()
+        return child_w, child_h, target_geometry
+
+    def show_developer_popup(self, child, width=None, height=None):
         if not self.widget_exists(child):
             return
         try:
             child.attributes("-alpha", 0.0)
-            self._apply_window_left_geometry(parent, child, width, height)
+            self._apply_developer_geometry(child, width, height)
             if child.state() == "withdrawn":
                 child.deiconify()
                 child.update_idletasks()
-            self._apply_window_left_geometry(parent, child, width, height)
-            self.after(20, lambda source=parent, target=child, w=width, h=height: self.finish_child_show_left_of(source, target, w, h))
+            self._apply_developer_geometry(child, width, height)
+            self.after(20, lambda target=child, w=width, h=height: self.finish_developer_show(target, w, h))
         except tk.TclError:
             pass
 
-    def finish_child_show_left_of(self, parent, child, width=None, height=None):
-        if not self.widget_exists(parent) or not self.widget_exists(child):
+    def finish_developer_show(self, child, width=None, height=None):
+        if not self.widget_exists(self.settings_window) or not self.widget_exists(child):
             return
         try:
-            self._apply_window_left_geometry(parent, child, width, height)
+            self._apply_developer_geometry(child, width, height)
             child._cvinput_popup_ready = True
             child.lift()
             child.focus_force()
             child.attributes("-alpha", float(self.config["opacity"]))
         except tk.TclError:
             pass
+
+    def close_transient_windows(self):
+        if hasattr(self, "close_developer_debug"):
+            self.close_developer_debug()
+        self.close_settings()
+        self.close_about()
 
     def place_settings_window_near_main(self, win, width, height):
         self.place_child_window_near_main(win, width, height)
@@ -312,10 +335,7 @@ class WindowMixin:
             self.outside_click_binding = None
 
     def dispose_transients(self):
-        if hasattr(self, "close_developer_debug"):
-            self.close_developer_debug()
-        self.close_settings()
-        self.close_about()
+        self.close_transient_windows()
         for _button, (_key, tooltip) in list(self.tooltips.items()):
             tooltip.hide()
         self.tooltips.clear()
