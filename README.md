@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/cover.svg" alt="CVInput" width="820">
+  <img src="assets/readme/cover.png" alt="CVInput" width="820">
 </p>
 
 <p align="center">
