@@ -12,7 +12,7 @@
   <img alt="version" src="https://img.shields.io/badge/version-v1.1.0-4f947f">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows-0078D4">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3776AB">
-  <img alt="license" src="https://img.shields.io/badge/license-TODO-lightgrey">
+  <a href="https://github.com/ShrinkShi/CVInput/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/ShrinkShi/CVInput?style=flat"></a>
 </p>
 
 # CVInput
@@ -132,6 +132,7 @@ python main.py
 - [开发说明与项目结构](docs/DEVELOPMENT.md)
 - [开发者调试](docs/DEBUGGING.md)
 - [打包说明](docs/BUILD.md)
+- [许可证说明](docs/LICENSE.md)
 
 ## 常见问题
 
@@ -171,7 +172,7 @@ python main.py
 
 ## 许可证
 
-TODO: 仓库当前未提供 `LICENSE` 文件。添加许可证前，不应假设本项目使用 MIT、Apache-2.0、GPL 或其他开源协议。
+本项目使用 `GPL-3.0` 许可证。完整许可证文本见仓库根目录 `LICENSE` 文件，补充说明见：[许可证说明](docs/LICENSE.md)。
 
 ## 使用边界
 

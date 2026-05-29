@@ -12,7 +12,7 @@
   <img alt="version" src="https://img.shields.io/badge/version-v1.1.0-4f947f">
   <img alt="platform" src="https://img.shields.io/badge/platform-Windows-0078D4">
   <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3776AB">
-  <img alt="license" src="https://img.shields.io/badge/license-TODO-lightgrey">
+  <a href="https://github.com/ShrinkShi/CVInput/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/github/license/ShrinkShi/CVInput?style=flat"></a>
 </p>
 
 # CVInput
@@ -132,6 +132,7 @@ If "remember settings next time" is disabled, CVInput only saves that switch sta
 - [Development and Project Structure](docs/DEVELOPMENT.md)
 - [Developer Debugging](docs/DEBUGGING.md)
 - [Build Guide](docs/BUILD.md)
+- [License Notes](docs/LICENSE_EN.md)
 
 ## FAQ
 
@@ -171,7 +172,7 @@ python main.py
 
 ## License
 
-TODO: This repository currently does not include a `LICENSE` file. Do not assume MIT, Apache-2.0, GPL, or any other open-source license until one is added.
+This project is licensed under `GPL-3.0`. See the root `LICENSE` file for the full license text, and [License Notes](docs/LICENSE_EN.md) for a short summary.
 
 ## Use Boundary
 
