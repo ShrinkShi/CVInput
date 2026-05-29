@@ -62,7 +62,7 @@ class TrayManager:
         self.on_exit()
 
     def load_icon(self):
-        for relative_path in ("assets/icon/icon256.png", "assets/icon.ico"):
+        for relative_path in ("assets/icon/icon256.png", "assets/icon/icon512.png"):
             try:
                 return Image.open(self.resource_path(relative_path))
             except Exception:
@@ -75,5 +75,5 @@ class TrayManager:
 
     def resource_path(self, relative_path):
         if getattr(sys, "frozen", False):
-            return Path(sys.executable).resolve().parent / relative_path
+            return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)) / relative_path
         return Path(__file__).resolve().parent.parent / relative_path

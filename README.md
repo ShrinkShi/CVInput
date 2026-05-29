@@ -35,10 +35,10 @@ python main.py
 ## 打包方式
 
 ```bash
-python -m PyInstaller --onefile --windowed --name CVInput --icon assets/icon.ico --add-data "src/locales;src/locales" --add-data "assets;assets" main.py
+python -m PyInstaller --clean --noconfirm CVInput.spec
 ```
 
-打包产物会生成到 `dist/`，构建缓存会生成到 `build/`。`--add-data "src/locales;src/locales"` 用于包含语言文件，`--add-data "assets;assets"` 用于包含标题栏的 `set.png`、`about.png` 等运行时图标。这些构建目录不应提交到仓库。
+打包产物会生成到 `dist/`，构建缓存会生成到 `build/`。`CVInput.spec` 会使用根目录 `icon.ico` 作为 exe 内嵌图标，并包含语言文件、标题栏运行时图标，以及 `assets/icon/icon512.png`、`assets/icon/icon256.png`；`assets/icon` 下其它尺寸 PNG 仅作为仓库备选资源，不会进入 exe。这些构建目录不应提交到仓库。
 
 ## 快捷键
 
@@ -231,7 +231,14 @@ CVInput/
 │     ├─ zh_cn.json
 │     └─ en_us.json
 ├─ assets/
-│  └─ icon.ico
+│  ├─ icon/
+│  │  ├─ icon512.png
+│  │  └─ icon256.png
+│  ├─ set.png
+│  ├─ about.png
+│  ├─ top.png
+│  ├─ min.png
+│  └─ close.png
 ├─ requirements.txt
 └─ README.md
 ```

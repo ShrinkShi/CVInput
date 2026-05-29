@@ -1,11 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+
+datas = [
+    ('icon.ico', '.'),
+    ('assets/icon/icon512.png', 'assets/icon'),
+    ('assets/icon/icon256.png', 'assets/icon'),
+]
+
+for asset in ('about.png', 'close.png', 'email.png', 'github.png', 'min.png', 'set.png', 'top.png'):
+    datas.append((f'assets/{asset}', 'assets'))
+
+for locale_file in Path('src/locales').glob('*.json'):
+    datas.append((str(locale_file), 'src/locales'))
+
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('src\\locales', 'src\\locales'), ('assets', 'assets')],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,5 +50,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets\\icon.ico'],
+    icon='icon.ico',
 )
