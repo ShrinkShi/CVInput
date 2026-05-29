@@ -1,46 +1,53 @@
-# CVInput
+<p align="center">
+  <img src="assets/readme/cover.svg" alt="CVInput" width="820">
+</p>
 
-[中文](README.md) | [English](README_EN.md)
+<p align="center">
+  <a href="README.md">中文</a> | <a href="README_EN.md">English</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ShrinkShi/CVInput/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/ShrinkShi/CVInput?style=flat&logo=github&label=stars"></a>
+  <a href="https://github.com/ShrinkShi/CVInput/network/members"><img alt="forks" src="https://img.shields.io/github/forks/ShrinkShi/CVInput?style=flat&logo=github&label=forks"></a>
+  <img alt="version" src="https://img.shields.io/badge/version-v1.1.0-4f947f">
+  <img alt="platform" src="https://img.shields.io/badge/platform-Windows-0078D4">
+  <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3776AB">
+  <img alt="license" src="https://img.shields.io/badge/license-TODO-lightgrey">
+</p>
+
+# CVInput
 
 CVInput is a Windows desktop utility that converts clipboard text into simulated keyboard input.
 
-It is useful when:
-
-- the target application does not accept normal paste;
-- text must be typed character by character;
-- chat applications may send messages when Enter is triggered;
-- multi-line text needs to be converted to single-line or typed line by line;
-- input behavior, window positioning, IME switching, or newline handling needs debugging.
+It is useful when the target application does not accept normal paste, text must be typed character by character, or chat applications may send messages when Enter is triggered.
 
 > Boundary: CVInput works by simulating keyboard events. It is not the same as native clipboard paste. Different target applications may handle simulated keys differently, especially WeChat, QQ, Electron, Chromium, and Qt-based input fields.
 
-Current version: `v1.1.0`
-
-## Overview
-
-CVInput monitors or reads clipboard text and displays it in a two-textbox workflow:
-
-- **Raw clipboard text**: preserves the original clipboard content.
-- **Input candidate text**: processed by the selected mode and used for actual simulated typing.
-
-When the user presses the input hotkey, CVInput types the candidate text character by character into the current target window. The default input hotkey is `Ctrl+V`.
-
 ## Features
 
-- Automatic clipboard monitoring and manual clipboard reading.
+- Two-textbox workflow: keep raw clipboard text and generate actual input candidate text.
 - Three input modes: Default, Single-line, and Split.
 - Three typing interval modes: Default, Custom interval, and Target duration.
-- Configurable input hotkey, stop hotkey, and hotkey toggle hotkey.
-- Press the stop hotkey while typing to stop input.
-- 10 input slots, default hotkeys `Alt+1` to `Alt+0`.
+- Global input hotkey, default `Ctrl+V`; press the stop hotkey while typing to stop input.
+- Multi-slot input with `Alt+1` to `Alt+0`.
 - Switch to English input layout before typing and restore the previous layout after typing.
 - Always-on-top, opacity control, tray minimization, and startup on boot.
-- Developer mode, category-based debug logs, and log export.
+- Developer mode with debug log export and clearing.
 - Multi-language UI. Locale files are stored in `src/locales/`.
 
-## Preview
+## Tech Stack
 
-TODO: Add screenshots for the main window, settings window, and developer debug panel.
+| Layer | Technology |
+|---|---|
+| Language | Python 3.10+ |
+| GUI | CustomTkinter / Tkinter |
+| Input simulation | pynput, pyautogui, keyboard, Win32 SendInput |
+| Clipboard | pyperclip |
+| Windows integration | pywin32, global hotkeys, IME layout switching, DPI awareness |
+| Tray and icons | pystray, Pillow |
+| Packaging | PyInstaller |
+
+More details: [Tech Stack](docs/TECH_STACK.md).
 
 ## Quick Start
 
@@ -95,17 +102,6 @@ Basic verification:
 
 Very short target durations are limited by Windows scheduling precision, target application responsiveness, and IME state.
 
-### IME Switching
-
-When "switch to English input state before and after typing" is enabled, CVInput will:
-
-1. Get the current foreground target window.
-2. Record its current keyboard layout.
-3. Try to switch to the English US layout `0x0409`.
-4. Restore the previous layout after typing.
-
-This feature depends on Windows, `pywin32`, and an installed English input layout. If the target application runs as administrator, CVInput may also need to run as administrator.
-
 ## Configuration
 
 Default config path:
@@ -114,108 +110,28 @@ Default config path:
 %LOCALAPPDATA%\CVInput\config.json
 ```
 
-If "remember settings next time" is disabled, CVInput only saves that switch state and resets other settings on next launch.
-
-### Common Settings
+Common settings:
 
 | Key | Default | Description |
 |---|---|---|
 | `input_hotkey` | `Ctrl+V` | Input hotkey |
 | `stop_typing_hotkey` | `Ctrl+V` | Stop hotkey while typing |
 | `hotkey_toggle_hotkey` | `Ctrl+Alt+V` | Hotkey toggle hotkey |
-| `hotkeys_enabled` | `true` | Whether global hotkeys are enabled |
-| `auto_clipboard` | `true` | Whether clipboard monitoring is enabled |
-| `disable_hotkey_when_clipboard_empty` | `true` | Release the input hotkey when candidate text is empty |
-| `clear_after_input` | `false` | Clear text after typing finishes |
-| `multi_slot_enabled` | `true` | Show multi-slot input |
-| `always_on_top` | `true` | Keep the main window always on top |
-| `close_to_tray` | `true` | Minimize to tray when closing the window |
-| `startup_on_boot` | `false` | Start with Windows |
-
-### Input Settings
-
-| Key | Default | Description |
-|---|---|---|
 | `input_mode` | `default` | Input mode |
-| `single_line_replacement` | `space` | Replacement for line breaks in Single-line mode: `space` or `tab` |
 | `typing_interval_mode` | `default` | Typing interval mode |
-| `typing_interval_ms` | `30` | Per-character interval in Custom interval mode |
-| `typing_target_duration_ms` | `1000` | Target total duration in Target duration mode |
+| `auto_clipboard` | `true` | Whether clipboard monitoring is enabled |
 | `toggle_ime_with_shift` | `true` | Switch to English input layout before typing and restore afterward |
-| `newline_shift_enter_method` | `pyautogui` | Low-level `Shift+Enter` backend in Default mode |
-| `input_encoding` | `auto` | Input text decoding mode |
-| `output_encoding` | `utf-8` | Debug log export encoding |
-
-### Developer Debug Settings
-
-| Key | Default | Description |
-|---|---|---|
+| `close_to_tray` | `true` | Minimize to tray when closing the window |
 | `developer_mode` | `false` | Enable developer mode |
-| `debug_window_position` | `false` | Record window positioning logs |
-| `debug_newline_behavior` | `false` | Record newline, typing, and IME logs |
 
-## Developer Mode
+If "remember settings next time" is disabled, CVInput only saves that switch state and resets other settings on next launch.
 
-Developer mode shows a developer debug panel next to the settings window.
+## More Documentation
 
-Available log categories:
-
-- Window position logs: popup size, coordinates, DPI, and follow-movement data.
-- Newline behavior logs: input mode, newline handling, low-level `Shift+Enter`, and IME switching data.
-
-Debug logs are stored in memory and can be exported from the settings window.
-
-## Languages
-
-Current locale files:
-
-| Code | Display name |
-|---|---|
-| `zh_cn` | 简体中文 |
-| `en_us` | English |
-| `zh_tw` | 繁體中文 |
-| `ru_ru` | Русский |
-| `ko_kp` | 한국어 |
-
-To add a language, add a JSON file under `src/locales/`.
-
-## Build
-
-Build with PyInstaller:
-
-```powershell
-python -m pip install pyinstaller
-pyinstaller CVInput.spec
-```
-
-Resources:
-
-| Resource | Description |
-|---|---|
-| `icon.ico` | Windows EXE / taskbar icon |
-| `assets/icon/icon256.png` | Tray/runtime icon |
-| `assets/icon/icon512.png` | Tray/runtime icon |
-| `src/locales/*.json` | Locale files |
-
-The build output is generated under `dist/`, which is normally not committed.
-
-## Project Structure
-
-```text
-.
-├── main.py              # Entry point; declares DPI awareness first
-├── src/
-│   ├── app/             # Controllers: hotkeys, clipboard, typing, settings, tray, lifecycle
-│   ├── ui/              # CustomTkinter UI, windows, settings, about page, widgets
-│   ├── locales/         # Language JSON files
-│   ├── typing_engine.py # Simulated typing core
-│   ├── ime.py           # Windows IME switching
-│   ├── win_input.py     # Win32 SendInput helpers
-│   └── debug_logger.py  # Developer debug logger
-├── assets/              # UI icon resources
-├── requirements.txt     # Python dependencies
-└── CVInput.spec         # PyInstaller build config
-```
+- [Tech Stack](docs/TECH_STACK.md)
+- [Development and Project Structure](docs/DEVELOPMENT.md)
+- [Developer Debugging](docs/DEBUGGING.md)
+- [Build Guide](docs/BUILD.md)
 
 ## FAQ
 
@@ -240,29 +156,18 @@ Common causes:
 
 Enable "switch to English input state before and after typing". CVInput will try to switch to English before typing and restore the previous layout afterward.
 
-### Where are debug logs?
-
-Enable Developer mode, turn on the needed log category in the developer debug panel, and use "Export debug log" in settings.
-
 ## Contributing
 
 Issues and suggestions are welcome:
 
 <https://github.com/ShrinkShi/CVInput/issues>
 
-Recommended local checks:
+Local checks:
 
 ```powershell
 python -m compileall -q main.py src
 python main.py
 ```
-
-When submitting a PR, include:
-
-- the purpose of the change;
-- affected feature areas;
-- tests performed;
-- whether it touches high-risk areas such as global hotkeys, IME switching, tray behavior, or window positioning.
 
 ## License
 
@@ -271,10 +176,5 @@ TODO: This repository currently does not include a `LICENSE` file. Do not assume
 ## Use Boundary
 
 CVInput is an input automation helper. Use it only in applications and input fields where you have permission to operate. Users are responsible for target application policies, account risk, permission environments, and unintended input.
-
-## Links
-
-- Issues: <https://github.com/ShrinkShi/CVInput/issues>
-- 中文 README: <README.md>
 
 Author: Shrink
