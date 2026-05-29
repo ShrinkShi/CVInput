@@ -3,8 +3,45 @@ import sys
 from pathlib import Path
 
 
-SUPPORTED_LANGUAGES = ("zh_cn", "en_us")
 DEFAULT_LANGUAGE = "zh_cn"
+LANGUAGE_NAMES = {
+    "zh_cn": "简体中文",
+    "en_us": "English",
+    "zh_tw": "繁體中文",
+    "ru_ru": "Русский",
+    "ko_kp": "한국어",
+}
+
+
+def locale_dir():
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        for candidate in (base / "src" / "locales", base / "locales"):
+            if candidate.exists():
+                return candidate
+    return Path(__file__).resolve().parent / "locales"
+
+
+def available_languages():
+    try:
+        codes = sorted(path.stem for path in locale_dir().glob("*.json") if path.is_file())
+    except Exception:
+        codes = []
+    if DEFAULT_LANGUAGE not in codes:
+        codes.insert(0, DEFAULT_LANGUAGE)
+    return tuple(dict.fromkeys(codes))
+
+
+def is_supported_language(language):
+    return str(language) in available_languages()
+
+
+def language_display_name(language, translator=None):
+    code = str(language)
+    return LANGUAGE_NAMES.get(code, code)
+
+
+SUPPORTED_LANGUAGES = available_languages()
 
 BUILTIN_FALLBACK = {
     "app.title": "CVI",
@@ -128,8 +165,11 @@ BUILTIN_FALLBACK = {
     "label.contact_me": "联系我",
     "label.contact_email": "email",
     "label.contact_qq": "qq",
-    "label.language.zh_cn": "中文",
+    "label.language.zh_cn": "简体中文",
     "label.language.en_us": "English",
+    "label.language.zh_tw": "繁體中文",
+    "label.language.ru_ru": "Русский",
+    "label.language.ko_kp": "한국어",
     "status.starting": "启动中",
     "status.listening_hotkey": "监听中 · {hotkey}",
     "status.hotkey_failed": "快捷键注册失败，请更换",
@@ -189,6 +229,7 @@ BUILTIN_FALLBACK = {
     "status.debug_log_cleared": "调试日志已清空",
     "status.debug_log_empty": "暂无调试日志",
     "tray.show_hide": "显示/隐藏窗口",
+    "tray.report_issue": "提交问题与反馈",
     "tray.exit": "退出",
     "help.body": "1. 复制文本后，原始剪贴板文本会进入上方文本框，待输入候选文本会进入下方文本框。\n2. 按输入快捷键，默认 Ctrl+V，即可将候选文本模拟为键盘输入。\n3. 模式包含默认、单行、分裂三种：默认模式模拟 Shift+Enter，单行模式替换换行，分裂模式每次输入一行。\n4. 输入间隔模式包含默认、自定义间隔、完成时间三种；极短完成时间可能受系统调度精度限制。\n5. 如果剪贴板为空，CVInput 会释放 Ctrl+V，避免影响系统原生粘贴。\n6. 如果目标程序以管理员权限运行，CVInput 也需要以管理员权限运行。\n7. 中文输入法下如出现中英混合输入异常，可开启“输入前后切换英文输入状态”。",
     "about.author": "Shrink",
@@ -203,12 +244,14 @@ BUILTIN_FALLBACK = {
 
 class Translator:
     def __init__(self, language=DEFAULT_LANGUAGE):
-        self.language = language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
+        language = str(language)
+        self.language = language if is_supported_language(language) else DEFAULT_LANGUAGE
         self.default_messages = self._load_language(DEFAULT_LANGUAGE)
         self.messages = self._load_language(self.language)
 
     def set_language(self, language):
-        self.language = language if language in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE
+        language = str(language)
+        self.language = language if is_supported_language(language) else DEFAULT_LANGUAGE
         self.messages = self._load_language(self.language)
 
     def t(self, key, **kwargs):
@@ -232,9 +275,4 @@ class Translator:
         return messages
 
     def _locale_path(self, language):
-        if getattr(sys, "frozen", False):
-            base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-            packed = base / "src" / "locales" / f"{language}.json"
-            if packed.exists():
-                return packed
-        return Path(__file__).resolve().parent / "locales" / f"{language}.json"
+        return locale_dir() / f"{language}.json"

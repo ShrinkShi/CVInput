@@ -5,6 +5,9 @@ class TrayController:
     def request_activate_window(self):
         self.schedule_ui(self.activate_window_from_tray)
 
+    def request_open_github_issues(self):
+        self.schedule_ui(self.open_github_issues)
+
     def request_exit(self):
         self.schedule_ui(self.exit_app)
 

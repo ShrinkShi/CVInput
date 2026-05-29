@@ -52,18 +52,27 @@ class CVInputUI(
         self.is_multi_slot_visible = False
         self.interval_row = None
         self.settings_icon = self.load_icon("set.png")
-        self.settings_icon_hover = self.load_icon("set.png", size=(18, 18), tint="#6fb49d")
+        self.settings_icon_hover = self.load_icon("set.png", tint="#6fb49d")
         self.about_icon = self.load_icon("about.png")
-        self.about_icon_hover = self.load_icon("about.png", size=(18, 18), tint="#6fb49d")
+        self.about_icon_hover = self.load_icon("about.png", tint="#6fb49d")
         self.github_icon = self.load_icon("github.png")
-        self.github_icon_hover = self.load_icon("github.png", size=(18, 18), tint="#6fb49d")
+        self.github_icon_hover = self.load_icon("github.png", tint="#6fb49d")
         self.email_icon = self.load_icon("email.png")
-        self.email_icon_hover = self.load_icon("email.png", size=(18, 18), tint="#6fb49d")
+        self.email_icon_hover = self.load_icon("email.png", tint="#6fb49d")
+        self.pin_icon = self.load_icon("top.png")
+        self.pin_icon_hover = self.load_icon("top.png", tint="#6fb49d")
+        self.pin_icon_active = self.load_icon("top.png", tint="#6fb49d")
+        self.pin_icon_active_hover = self.load_icon("top.png", tint="#4f947f")
+        self.minimize_icon = self.load_icon("min.png")
+        self.minimize_icon_hover = self.load_icon("min.png", tint="#6fb49d")
+        self.close_icon = self.load_icon("close.png")
+        self.close_icon_hover = self.load_icon("close.png", tint="#6fb49d")
 
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
 
         self.title(APP_NAME)
+        self.apply_app_icon(self)
         self.overrideredirect(True)
         self.geometry(f"{self.WIDTH}x{self.HEIGHT}+980+120")
         self.resizable(False, False)
@@ -146,26 +155,39 @@ class CVInputUI(
 
         self.right_tools = ctk.CTkFrame(self.titlebar, fg_color="transparent")
         self.right_tools.grid(row=0, column=2, sticky="e")
-        self.pin_button = self.icon_button(self.right_tools, "📌︎", self.controller.toggle_always_on_top, "tooltip.pin")
+        self.pin_button = self.icon_button(
+            self.right_tools,
+            "" if self.pin_icon else "📌︎",
+            self.controller.toggle_always_on_top,
+            "tooltip.pin",
+            image=self.pin_icon,
+            hover_image=self.pin_icon_hover,
+            width=20,
+            height=20,
+        )
         self.pin_button.pack(side="left")
         self.minimize_button = self.icon_button(
             self.right_tools,
-            "-",
+            "" if self.minimize_icon else "-",
             self.minimize_window,
             "tooltip.minimize",
             font=("Segoe UI Symbol", 15),
-            width=38,
-            height=38,
+            image=self.minimize_icon,
+            hover_image=self.minimize_icon_hover,
+            width=24,
+            height=24,
         )
         self.minimize_button.pack(side="left", padx=(2, 0))
         self.close_button = self.icon_button(
             self.right_tools,
-            "×",
+            "" if self.close_icon else "×",
             self.controller.close,
             "tooltip.close",
             font=("Segoe UI Symbol", 15),
-            width=38,
-            height=38,
+            image=self.close_icon,
+            hover_image=self.close_icon_hover,
+            width=20,
+            height=20,
         )
         self.close_button.pack(side="left", padx=(2, 0))
 

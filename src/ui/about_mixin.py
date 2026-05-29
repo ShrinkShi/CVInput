@@ -206,6 +206,7 @@ class AboutMixin:
         if not self.widget_exists(win):
             return
         try:
+            self.apply_app_icon(win)
             self.place_contact_window()
             win._cvinput_popup_ready = True
             win.lift()

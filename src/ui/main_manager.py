@@ -162,8 +162,16 @@ class MainManagerMixin:
         if not self.widget_exists(getattr(self, "pin_button", None)):
             return
         color = "#6fb49d" if enabled else "#c7d0dc"
+        image = getattr(self, "pin_icon_active", None) if enabled else getattr(self, "pin_icon", None)
+        hover_image = getattr(self, "pin_icon_active_hover", None) if enabled else getattr(self, "pin_icon_hover", None)
         self.pin_button._normal_text_color = color
-        self.pin_button.configure(text="📌︎", text_color=color)
+        self.pin_button._normal_image = image
+        self.pin_button._hover_image = hover_image
+        self.pin_button.configure(
+            text="" if image else "📌︎",
+            image=image,
+            text_color=color,
+        )
 
     def show_warning(self, _title, message):
         self.set_status(message, "error")

@@ -30,9 +30,11 @@ from ..debug_logger import (
     set_category_enabled,
     set_developer_mode,
 )
+from ..i18n import is_supported_language
 
 
 GITHUB_URL = "https://github.com/ShrinkShi/CVInput"
+GITHUB_ISSUES_URL = f"{GITHUB_URL}/issues"
 EMAIL = "1363072460@qq.com"
 
 
@@ -232,6 +234,8 @@ class SettingsController:
         self.save_config()
 
     def set_language(self, language):
+        if not is_supported_language(language):
+            return
         if language == self.config["language"]:
             return
         self.config["language"] = language
@@ -373,6 +377,9 @@ class SettingsController:
 
     def open_github(self):
         webbrowser.open(GITHUB_URL)
+
+    def open_github_issues(self):
+        webbrowser.open(GITHUB_ISSUES_URL)
 
     def copy_email(self):
         try:

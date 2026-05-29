@@ -1,7 +1,8 @@
-from src.dpi import enable_dpi_awareness
+from src.dpi import enable_dpi_awareness, set_app_user_model_id
 
 
 enable_dpi_awareness()
+set_app_user_model_id()
 
 from src.app import CVInputApp
 

@@ -57,6 +57,7 @@ class CVInputApp(
             self.t,
             self.request_activate_window,
             self.request_toggle_window,
+            self.request_open_github_issues,
             self.request_exit,
         )
         self.typing_stop_event = threading.Event()

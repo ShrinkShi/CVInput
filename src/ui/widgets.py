@@ -1,4 +1,5 @@
 from pathlib import Path
+import tkinter as tk
 
 import customtkinter as ctk
 from PIL import Image
@@ -64,12 +65,18 @@ class WidgetFactoryMixin:
             font=font,
             command=command,
         )
+        button._normal_image = image
+        button._hover_image = hover_image
+        button._normal_text_color = text_color
+
         def on_enter(_event=None):
             if not self.widget_exists(button):
                 return
-            button._normal_text_color = button.cget("text_color")
             try:
-                button.configure(text_color=self.icon_hover_color(button._normal_text_color))
+                button.configure(
+                    image=getattr(button, "_hover_image", None) or getattr(button, "_normal_image", None),
+                    text_color=self.icon_hover_color(getattr(button, "_normal_text_color", text_color)),
+                )
             except Exception:
                 pass
 
@@ -77,7 +84,11 @@ class WidgetFactoryMixin:
             if not self.widget_exists(button):
                 return
             try:
-                button.configure(font=font, text_color=getattr(button, "_normal_text_color", text_color))
+                button.configure(
+                    font=font,
+                    image=getattr(button, "_normal_image", image),
+                    text_color=getattr(button, "_normal_text_color", text_color),
+                )
             except Exception:
                 pass
 
@@ -132,6 +143,98 @@ class WidgetFactoryMixin:
     def replace_textbox_text(self, textbox, text):
         textbox.delete("1.0", "end")
         textbox.insert("1.0", text)
+
+    def apply_app_icon(self, win, schedule_refresh=True):
+        icon_path = resource_path(Path("assets") / "icon.ico")
+        photos = []
+        for size in (1024, 512, 256, 128, 64, 48, 32, 24, 16):
+            png_path = resource_path(Path("assets") / "icon" / f"icon{size}.png")
+            try:
+                photos.append(tk.PhotoImage(file=str(png_path)))
+            except Exception:
+                pass
+        try:
+            win.iconbitmap(default=str(icon_path))
+            win.iconbitmap(str(icon_path))
+            win._iconbitmap_method_called = True
+        except Exception:
+            pass
+        if photos:
+            try:
+                win._cvinput_icon_photos = photos
+                win.iconphoto(True, *photos)
+            except Exception:
+                pass
+        if schedule_refresh and not getattr(win, "_cvinput_icon_refresh_scheduled", False):
+            win._cvinput_icon_refresh_scheduled = True
+            for delay in (260, 800):
+                try:
+                    win.after(delay, lambda target=win: self.apply_app_icon(target, schedule_refresh=False))
+                except Exception:
+                    pass
+
+    def enable_option_menu_toggle(self, menu):
+        if getattr(menu, "_cvinput_toggle_enabled", False):
+            return menu
+
+        menu._cvinput_toggle_enabled = True
+        menu._cvinput_dropdown_open = False
+        original_open = menu._open_dropdown_menu
+        original_dropdown_callback = menu._dropdown_callback
+
+        def is_dropdown_mapped():
+            dropdown = getattr(menu, "_dropdown_menu", None)
+            if dropdown is None:
+                return False
+            try:
+                return bool(dropdown.winfo_ismapped())
+            except Exception:
+                return False
+
+        def close_dropdown():
+            dropdown = getattr(menu, "_dropdown_menu", None)
+            if dropdown is not None:
+                try:
+                    dropdown.unpost()
+                except Exception:
+                    pass
+            menu._cvinput_dropdown_open = False
+
+        def monitor_dropdown_closed():
+            if not self.widget_exists(menu):
+                return
+            if is_dropdown_mapped():
+                try:
+                    menu.after(80, monitor_dropdown_closed)
+                except Exception:
+                    pass
+                return
+            menu._cvinput_dropdown_open = False
+
+        def clicked(event=0):
+            if str(getattr(menu, "_state", "normal")) == "disabled" or not getattr(menu, "_values", []):
+                return
+            if getattr(menu, "_cvinput_dropdown_open", False):
+                close_dropdown()
+                return
+            menu._cvinput_dropdown_open = True
+            original_open()
+            try:
+                menu.after(80, monitor_dropdown_closed)
+            except Exception:
+                pass
+
+        def dropdown_callback(value):
+            menu._cvinput_dropdown_open = False
+            original_dropdown_callback(value)
+
+        menu._clicked = clicked
+        try:
+            menu._dropdown_menu.configure(command=dropdown_callback)
+            menu._create_bindings(sequence="<Button-1>")
+        except Exception:
+            pass
+        return menu
 
     def widget_exists(self, widget):
         return widget_exists(widget)

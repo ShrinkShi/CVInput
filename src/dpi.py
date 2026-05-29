@@ -26,6 +26,21 @@ def _set_process_dpi_awareness_context():
         return False
 
 
+def set_app_user_model_id(app_id="CVInput.CVInput"):
+    if not sys.platform.startswith("win"):
+        return False
+    try:
+        shell32 = ctypes.windll.shell32
+        set_app_id = getattr(shell32, "SetCurrentProcessExplicitAppUserModelID", None)
+        if set_app_id is None:
+            return False
+        set_app_id.argtypes = [ctypes.c_wchar_p]
+        set_app_id.restype = ctypes.c_long
+        return set_app_id(app_id) == 0
+    except Exception:
+        return False
+
+
 def _set_process_dpi_awareness():
     try:
         shcore = ctypes.windll.shcore

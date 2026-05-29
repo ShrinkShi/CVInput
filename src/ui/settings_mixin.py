@@ -31,6 +31,7 @@ from ..constants import (
     TYPING_MODE_SPLIT,
 )
 from ..debug_logger import debug_log
+from ..i18n import available_languages, language_display_name
 from .theme import ACCENT, HOVER, MUTED, SURFACE, SURFACE_DARK, TEXT
 
 
@@ -123,6 +124,7 @@ class SettingsMixin:
             command=self.on_typing_interval_mode_selected,
         )
         self.typing_interval_mode_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.typing_interval_mode_menu)
         self.set_typing_interval_mode_value(self.config.get("typing_interval_mode", DEFAULT_TYPING_INTERVAL_MODE))
         self.add_tooltip(self.typing_interval_mode_menu, "tooltip.setting.typing_interval_mode")
 
@@ -207,6 +209,7 @@ class SettingsMixin:
             command=self.on_typing_mode_selected,
         )
         self.typing_mode_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.typing_mode_menu)
         self.apply_typing_mode_button = self.icon_button(
             self.typing_mode_row,
             "✓",
@@ -242,6 +245,7 @@ class SettingsMixin:
             command=self.on_single_line_replacement_selected,
         )
         self.single_line_replacement_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.single_line_replacement_menu)
         self.apply_single_line_replacement_button = self.icon_button(
             self.single_line_replacement_row,
             "✓",
@@ -281,6 +285,7 @@ class SettingsMixin:
             font=("Segoe UI", 10),
         )
         self.input_encoding_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.input_encoding_menu)
         self.apply_input_encoding_button = self.icon_button(
             input_encoding_row,
             "✓",
@@ -317,6 +322,7 @@ class SettingsMixin:
             font=("Segoe UI", 10),
         )
         self.output_encoding_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.output_encoding_menu)
         self.apply_encoding_button = self.icon_button(
             output_encoding_row,
             "✓",
@@ -391,10 +397,7 @@ class SettingsMixin:
         language_row = ctk.CTkFrame(content, fg_color="transparent")
         language_row.pack(fill="x", pady=(7, 3))
         ctk.CTkLabel(language_row, text=self.t("label.language"), width=88, anchor="w", font=("Segoe UI", 10), text_color="#c6ced9").pack(side="left")
-        self.language_codes = {
-            self.t("label.language.zh_cn"): "zh_cn",
-            self.t("label.language.en_us"): "en_us",
-        }
+        self.language_codes = self.build_language_codes()
         self.language_menu = ctk.CTkOptionMenu(
             language_row,
             values=list(self.language_codes.keys()),
@@ -405,9 +408,9 @@ class SettingsMixin:
             dropdown_fg_color=SURFACE,
             command=self.on_language_selected,
         )
-        current_label = self.t(f"label.language.{self.config['language']}")
-        self.language_menu.set(current_label)
+        self.language_menu.set(self.current_language_label())
         self.language_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.language_menu)
 
         ctk.CTkButton(
             content,
@@ -544,6 +547,7 @@ class SettingsMixin:
             command=self.on_newline_method_selected,
         )
         self.newline_method_menu.pack(side="left", fill="x", expand=True)
+        self.enable_option_menu_toggle(self.newline_method_menu)
         self.set_newline_method_value(self.config.get("newline_shift_enter_method", DEFAULT_NEWLINE_SHIFT_ENTER_METHOD))
         self.add_tooltip(self.newline_method_menu, "tooltip.setting.newline_backend")
 
@@ -614,8 +618,32 @@ class SettingsMixin:
             count = self.controller.debug_log_count()
             self.developer_log_count_label.configure(text=self.t("label.debug_log_count", count=count))
 
+    def language_label(self, code):
+        return language_display_name(code)
+
+    def build_language_codes(self):
+        labels = {}
+        for code in available_languages():
+            label = self.language_label(code)
+            if label in labels:
+                label = f"{label} ({code})"
+            labels[label] = code
+        return labels
+
+    def current_language_label(self):
+        code = self.config.get("language", "zh_cn")
+        labels = getattr(self, "language_codes", {}) or self.build_language_codes()
+        return next((label for label, value in labels.items() if value == code), self.language_label(code))
+
+    def refresh_language_menu_values(self):
+        if not self.widget_exists(getattr(self, "language_menu", None)):
+            return
+        self.language_codes = self.build_language_codes()
+        self.language_menu.configure(values=list(self.language_codes.keys()))
+        self.language_menu.set(self.current_language_label())
+
     def on_language_selected(self, label):
-        language = self.language_codes.get(label, "zh_cn")
+        language = self.language_codes.get(label, self.config.get("language", "zh_cn"))
         self.controller.set_language(language)
 
     def on_newline_method_selected(self, label):
@@ -820,7 +848,7 @@ class SettingsMixin:
         if self.widget_exists(getattr(self, "opacity_slider", None)):
             self.opacity_slider.set(float(self.config["opacity"]))
         if self.widget_exists(getattr(self, "language_menu", None)):
-            self.language_menu.set(self.t(f"label.language.{self.config['language']}"))
+            self.refresh_language_menu_values()
         for index, entry in enumerate(getattr(self, "slot_entries", [])):
             text = self.config["multi_slots"][index] if index < len(self.config["multi_slots"]) else ""
             self.replace_textbox_text(entry, text)

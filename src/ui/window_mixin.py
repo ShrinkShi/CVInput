@@ -2,6 +2,7 @@ import tkinter as tk
 
 import customtkinter as ctk
 
+from ..constants import APP_NAME
 from .theme import BORDER, SURFACE, TEXT, TRANSPARENT_KEY
 from ..debug_logger import debug_log
 from .window_utils import coerce_window_size, developer_panel_geometry, left_attached_geometry, widget_exists
@@ -36,8 +37,10 @@ class WindowMixin:
     def prepare_popup(self, win, width, height):
         win._cvinput_popup_ready = False
         win.withdraw()
+        win.title(APP_NAME)
         win.overrideredirect(True)
         win.resizable(False, False)
+        self.apply_app_icon(win)
         win.minsize(width, height)
         win.maxsize(width, height)
         win.attributes("-topmost", bool(self.config["always_on_top"]))
@@ -67,7 +70,16 @@ class WindowMixin:
             title.place(relx=0.5, rely=0.5, anchor="center")
         else:
             title.pack(side="left")
-        close_button = self.icon_button(header, "×", close_command, "tooltip.close")
+        close_image = getattr(self, "close_icon", None)
+        close_hover_image = getattr(self, "close_icon_hover", None)
+        close_button = self.icon_button(
+            header,
+            "" if close_image else "×",
+            close_command,
+            "tooltip.close",
+            image=close_image,
+            hover_image=close_hover_image,
+        )
         close_button.pack(side="right")
         for action in reversed(actions or []):
             text, command, tooltip_key = action[:3]
@@ -149,6 +161,7 @@ class WindowMixin:
         if not self.widget_exists(child):
             return
         try:
+            self.apply_app_icon(child)
             self._apply_child_left_geometry(child, width, height)
             child._cvinput_popup_ready = True
             child.lift()
@@ -219,6 +232,7 @@ class WindowMixin:
         if not self.widget_exists(self.settings_window) or not self.widget_exists(child):
             return
         try:
+            self.apply_app_icon(child)
             self._apply_developer_geometry(child, width, height)
             child._cvinput_popup_ready = True
             child.lift()
